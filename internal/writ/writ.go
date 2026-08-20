@@ -40,13 +40,29 @@ type Writ struct {
 	Scope    []string    `toml:"scope"` // path globs the work may touch
 	Criteria []Criterion `toml:"criteria"`
 	Verify   VerifySpec  `toml:"verify"`
+	Approved *Approval   `toml:"approved,omitempty"` // nil = proposed, not yet approved
+}
+
+// Approval records that a human has agreed to a writ's scope and criteria.
+type Approval struct {
+	At time.Time `toml:"at"`
 }
 
 // Criterion is a single checkable acceptance criterion.
 type Criterion struct {
-	ID   string `toml:"id"`
-	Text string `toml:"text"`
-	Met  *bool  `toml:"met,omitempty"` // nil = not yet assessed
+	ID          string       `toml:"id"`
+	Text        string       `toml:"text"`
+	Met         *bool        `toml:"met,omitempty"`         // nil = not yet assessed
+	Attestation *Attestation `toml:"attestation,omitempty"` // who claims Met and how
+}
+
+// Attestation records who claims a criterion is met and how. It is a claim,
+// not a fact: an agent attestation is unverified and must be rendered as
+// such, distinct from machine-verified evidence.
+type Attestation struct {
+	By   string    `toml:"by"` // "agent" or "human"
+	Note string    `toml:"note"`
+	At   time.Time `toml:"at"`
 }
 
 // VerifySpec is the command that verifies the work meets its criteria.
@@ -125,6 +141,15 @@ func (w *Writ) Validate() error {
 			problems = append(problems, fmt.Sprintf("duplicate criterion id %q", c.ID))
 		}
 		seen[c.ID] = true
+
+		if c.Attestation != nil {
+			if c.Attestation.By != "agent" && c.Attestation.By != "human" {
+				problems = append(problems, fmt.Sprintf("criterion %q: attestation.by must be \"agent\" or \"human\", got %q", c.ID, c.Attestation.By))
+			}
+			if c.Met == nil || !*c.Met {
+				problems = append(problems, fmt.Sprintf("criterion %q: attestation present but met is not true", c.ID))
+			}
+		}
 	}
 
 	if strings.TrimSpace(w.Verify.Command) == "" {

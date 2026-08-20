@@ -34,6 +34,9 @@ func Status(w *writ.Writ, d *drift.Report, e *evidence.Report, dec gate.Decision
 
 	fmt.Fprintf(&b, "  writ    %s\n\n", w.Intent)
 	fmt.Fprintf(&b, "  %-13s%s\n", "CONTRACT", contractLine(w))
+	for _, line := range criterionLines(w) {
+		fmt.Fprintf(&b, "                 %s\n", line)
+	}
 	fmt.Fprintf(&b, "  %-13s%s\n", "EVIDENCE", evidenceLine(w, e))
 	fmt.Fprintf(&b, "  %-13s%s\n", "IN SCOPE", inScopeLine(d))
 	fmt.Fprintf(&b, "  %-13s%s\n", "DRIFT", driftLine(d))
@@ -53,7 +56,41 @@ func contractLine(w *writ.Writ) string {
 			met++
 		}
 	}
-	return fmt.Sprintf("%d/%d criteria met", met, len(w.Criteria))
+	return fmt.Sprintf("%d/%d criteria", met, len(w.Criteria))
+}
+
+// criterionLines renders one line per criterion showing its provenance,
+// visibly distinct: a machine cannot tell agent claims from human
+// confirmation apart from evidence, so a reader must never have to either.
+func criterionLines(w *writ.Writ) []string {
+	if len(w.Criteria) == 0 {
+		return nil
+	}
+
+	idWidth := 0
+	for _, c := range w.Criteria {
+		if len(c.ID) > idWidth {
+			idWidth = len(c.ID)
+		}
+	}
+
+	lines := make([]string, 0, len(w.Criteria))
+	for _, c := range w.Criteria {
+		lines = append(lines, fmt.Sprintf("%-*s   %s", idWidth, c.ID, provenance(c)))
+	}
+	return lines
+}
+
+func provenance(c writ.Criterion) string {
+	if c.Attestation == nil {
+		return "not assessed"
+	}
+	switch c.Attestation.By {
+	case "human":
+		return "confirmed by you"
+	default: // "agent"
+		return fmt.Sprintf("claimed by agent   %q", c.Attestation.Note)
+	}
 }
 
 func evidenceLine(w *writ.Writ, e *evidence.Report) string {
