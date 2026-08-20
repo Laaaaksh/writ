@@ -16,8 +16,14 @@ import (
 // ErrNoWrit is returned by Load when no writ is open in the repo.
 var ErrNoWrit = errors.New("no writ open")
 
+// Dir is the directory, relative to a repo root, that holds writ's own
+// runtime state. It is writ's bookkeeping, not the agent's work, so
+// consumers such as drift detection must exclude it rather than treat it
+// as in-scope or out-of-scope repo content.
+const Dir = ".writ"
+
 // writPath is the path, relative to a repo root, where the open writ lives.
-const writPath = ".writ/current.toml"
+const writPath = Dir + "/current.toml"
 
 // wholeRepoScopes are scope entries that would make drift meaningless because
 // they cover the entire repository.

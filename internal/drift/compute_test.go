@@ -232,6 +232,63 @@ func TestCompute_BinaryFile(t *testing.T) {
 	}
 }
 
+func TestCompute_WritStateFileExcludedFromBothScopeAndDrift(t *testing.T) {
+	dir := newTestRepo(t)
+	writeFile(t, dir, writ.Dir+"/current.toml", "id = \"seed\"\n")
+	git(t, dir, "add", writ.Dir)
+	git(t, dir, "commit", "-q", "-m", "add writ state")
+	markBase(t, dir)
+	writeFile(t, dir, writ.Dir+"/current.toml", "id = \"seed\"\nintent = \"more\"\n")
+	git(t, dir, "add", writ.Dir)
+	git(t, dir, "commit", "-q", "-m", "advance writ state")
+
+	report, err := Compute(testWrit("app/**"), dir)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if _, ok := findChange(report.InScope, writ.Dir+"/current.toml"); ok {
+		t.Errorf("expected %s/current.toml not in scope, got %+v", writ.Dir, report.InScope)
+	}
+	if _, ok := findChange(report.Drift, writ.Dir+"/current.toml"); ok {
+		t.Errorf("expected %s/current.toml not in drift, got %+v", writ.Dir, report.Drift)
+	}
+}
+
+func TestCompute_UntrackedWritStateFileExcludedFromBothScopeAndDrift(t *testing.T) {
+	dir := newTestRepo(t)
+	markBase(t, dir)
+	writeFile(t, dir, writ.Dir+"/current.toml", "id = \"seed\"\n")
+
+	report, err := Compute(testWrit("app/**"), dir)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if _, ok := findChange(report.InScope, writ.Dir+"/current.toml"); ok {
+		t.Errorf("expected untracked %s/current.toml not in scope, got %+v", writ.Dir, report.InScope)
+	}
+	if _, ok := findChange(report.Drift, writ.Dir+"/current.toml"); ok {
+		t.Errorf("expected untracked %s/current.toml not in drift, got %+v", writ.Dir, report.Drift)
+	}
+}
+
+func TestCompute_SimilarlyNamedPathsAreNotExcludedByPrefix(t *testing.T) {
+	dir := newTestRepo(t)
+	markBase(t, dir)
+	writeFile(t, dir, ".writings/notes.md", "line one\nline two\n")
+	writeFile(t, dir, ".writ-backup", "backup\n")
+
+	report, err := Compute(testWrit("app/**"), dir)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	if _, ok := findChange(report.Drift, ".writings/notes.md"); !ok {
+		t.Errorf("expected .writings/notes.md to still be reported as drift, got %+v", report.Drift)
+	}
+	if _, ok := findChange(report.Drift, ".writ-backup"); !ok {
+		t.Errorf("expected .writ-backup to still be reported as drift, got %+v", report.Drift)
+	}
+}
+
 func TestCompute_NonExistentBaseReturnsError(t *testing.T) {
 	dir := newTestRepo(t)
 	writeFile(t, dir, "app/foo.go", "package app\n")
