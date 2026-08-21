@@ -40,11 +40,12 @@ func runMerge(cmd *cobra.Command, approve bool) error {
 		return err
 	}
 
-	w, dec, d, e, err := evaluate(repoDir)
-	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
-		return exitCodeErr{code: 2}
+	w, err := loadOpenWrit(cmd, repoDir)
+	if err != nil {
+		return err
 	}
+
+	dec, d, e, err := decide(repoDir, w)
 	if err != nil {
 		return err
 	}

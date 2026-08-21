@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -35,11 +34,7 @@ func runApprove(cmd *cobra.Command, yes bool) error {
 		return err
 	}
 
-	w, err := writ.Load(repoDir)
-	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
-		return exitCodeErr{code: 2}
-	}
+	w, err := loadOpenWrit(cmd, repoDir)
 	if err != nil {
 		return err
 	}

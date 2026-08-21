@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/Laaaaksh/writ/internal/gate"
 )
 
@@ -295,6 +297,71 @@ func attestCriterion(t *testing.T, id string) {
 	}
 	if err := cmd.RunE(cmd, []string{id}); err != nil {
 		t.Fatalf("attest %s: %v", id, err)
+	}
+}
+
+// TestRunMergeNeedsHumanRefusalThenApproveOverride locks in the README's
+// merge contract end to end at Go level: a writ whose verification fails is
+// needs-human, so plain merge refuses with exit 1 and names --approve, and
+// merge --approve records the human approval and merges anyway.
+func TestRunMergeNeedsHumanRefusalThenApproveOverride(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "false"
+`)
+	approveYes(t)
+	attestCriterion(t, "c1")
+
+	newCmd := func(approve bool) *cobra.Command {
+		cmd := newMergeCmd()
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		if approve {
+			if err := cmd.Flags().Set("approve", "true"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return cmd
+	}
+
+	err := newCmd(false).RunE(newCmd(false), nil)
+	if ec, ok := err.(exitCodeErr); !ok || ec.code != 1 {
+		t.Fatalf("merge needing human review without --approve: err = %v, want exitCodeErr{1}", err)
+	}
+
+	branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if branch != "feature" {
+		t.Errorf("a refused merge must not change branches, got %q", branch)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".writ", "current.toml")); statErr != nil {
+		t.Errorf("a refused merge must keep the open writ: %v", statErr)
+	}
+
+	override := newCmd(true)
+	if err := override.RunE(override, nil); err != nil {
+		t.Fatalf("merge --approve: %v", err)
+	}
+
+	branch = strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if branch != "base" {
+		t.Errorf("expected merge --approve to land on base, got %q", branch)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".writ", "current.toml")); !os.IsNotExist(statErr) {
+		t.Errorf("expected .writ/current.toml cleared after merge --approve, got stat err %v", statErr)
 	}
 }
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -72,5 +74,62 @@ command = "true"
 
 	if err := newCmd().RunE(newCmd(), nil); err != nil {
 		t.Fatalf("status after attesting: %v, want nil (exit 0)", err)
+	}
+}
+
+// A .writ/current.toml that exists but cannot be parsed must not strand a
+// user behind an inscrutable TOML error in any command: every reader points
+// at `writ discard`, which by design succeeds even on broken state.
+func TestLoadOpenWritCorruptStateNamesDiscard(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	statePath := filepath.Join(dir, ".writ", "current.toml")
+	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath, []byte("not [ valid toml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	newCmds := []struct {
+		name string
+		cmd  func() *cobra.Command
+		args []string
+	}{
+		{"approve", newApproveCmd, nil},
+		{"attest", func() *cobra.Command {
+			c := newAttestCmd()
+			if err := c.Flags().Set("note", "how"); err != nil {
+				t.Fatal(err)
+			}
+			return c
+		}, []string{"c1"}},
+		{"unattest", newUnattestCmd, []string{"c1"}},
+		{"status", newStatusCmd, nil},
+		{"merge", newMergeCmd, nil},
+	}
+
+	for _, tt := range newCmds {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := tt.cmd()
+			var out, errOut bytes.Buffer
+			cmd.SetOut(&out)
+			cmd.SetErr(&errOut)
+
+			err := cmd.RunE(cmd, tt.args)
+			if err == nil {
+				t.Fatal("expected an error when the open state file is corrupt")
+			}
+			if _, ok := err.(exitCodeErr); ok {
+				t.Errorf("corrupt state is not 'no writ open': got exit-code error %v", err)
+			}
+			if !strings.Contains(err.Error(), "discard") {
+				t.Errorf("error = %v, want it to point at `writ discard`", err)
+			}
+			if _, statErr := os.Stat(statePath); statErr != nil {
+				t.Errorf("a refused command must leave the state file for discard to clear: %v", statErr)
+			}
+		})
 	}
 }

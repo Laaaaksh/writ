@@ -33,11 +33,12 @@ func runStatus(cmd *cobra.Command) error {
 		return err
 	}
 
-	w, dec, d, e, err := evaluate(repoDir)
-	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
-		return exitCodeErr{code: 2}
+	w, err := loadOpenWrit(cmd, repoDir)
+	if err != nil {
+		return err
 	}
+
+	dec, d, e, err := decide(repoDir, w)
 	if err != nil {
 		return err
 	}
@@ -50,26 +51,39 @@ func runStatus(cmd *cobra.Command) error {
 	return nil
 }
 
-// evaluate runs the full pipeline shared by `writ status` and `writ merge`:
-// load the writ, compute drift, run verification, and decide.
-func evaluate(repoDir string) (*writ.Writ, gate.Decision, *drift.Report, *evidence.Report, error) {
+// loadOpenWrit loads .writ/current.toml relative to repoDir on behalf of
+// every command that needs the open writ, translating the two failure modes
+// into their shared user-facing contract: nothing open prints the propose
+// hint and exits 2, while a file that exists but cannot be read or parsed
+// points at `writ discard`, which by design succeeds even on broken state -
+// without that pointer a stranded user sees only an inscrutable TOML error.
+func loadOpenWrit(cmd *cobra.Command, repoDir string) (*writ.Writ, error) {
 	w, err := writ.Load(repoDir)
-	if err != nil {
-		return nil, gate.Decision{}, nil, nil, err
+	if errors.Is(err, writ.ErrNoWrit) {
+		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
+		return nil, exitCodeErr{code: 2}
 	}
+	if err != nil {
+		return nil, fmt.Errorf("%w; run `writ discard` to clear the broken state", err)
+	}
+	return w, nil
+}
 
+// decide runs drift computation, verification, and the mergeability gate for
+// an already-loaded writ - the pipeline shared by `writ status` and
+// `writ merge`.
+func decide(repoDir string, w *writ.Writ) (gate.Decision, *drift.Report, *evidence.Report, error) {
 	d, err := drift.Compute(w, repoDir)
 	if err != nil {
-		return nil, gate.Decision{}, nil, nil, fmt.Errorf("computing drift: %w", err)
+		return gate.Decision{}, nil, nil, fmt.Errorf("computing drift: %w", err)
 	}
 
 	e, err := evidence.Run(w, repoDir)
 	if err != nil {
-		return nil, gate.Decision{}, nil, nil, fmt.Errorf("running verification: %w", err)
+		return gate.Decision{}, nil, nil, fmt.Errorf("running verification: %w", err)
 	}
 
-	dec := gate.Decide(w, d, e)
-	return w, dec, d, e, nil
+	return gate.Decide(w, d, e), d, e, nil
 }
 
 // exitCodeErr carries a specific process exit code through cobra's error

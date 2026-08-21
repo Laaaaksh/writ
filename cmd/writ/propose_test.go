@@ -119,6 +119,50 @@ func TestRunProposeInvalidWrit(t *testing.T) {
 	}
 }
 
+// A syntactically broken proposal must fail with a parse error naming the
+// problem, and must not write any state file.
+func TestRunProposeMalformedTOML(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	cmd := newProposeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetIn(strings.NewReader("id = [ not toml"))
+
+	if err := cmd.RunE(cmd, nil); err == nil {
+		t.Fatal("expected an error for malformed TOML input")
+	} else if !strings.Contains(err.Error(), "parsing writ") {
+		t.Errorf("error = %v, want it to name the parse failure", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".writ", "current.toml")); !os.IsNotExist(statErr) {
+		t.Errorf("malformed TOML must not create state (stat error: %v)", statErr)
+	}
+}
+
+// A --file path that cannot be read must fail with an error naming the path.
+func TestRunProposeFileReadError(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	missing := filepath.Join(t.TempDir(), "no-such-writ.toml")
+
+	cmd := newProposeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Flags().Set("file", missing); err != nil {
+		t.Fatal(err)
+	}
+
+	err := cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected an error for a missing --file path")
+	}
+	if !strings.Contains(err.Error(), missing) {
+		t.Errorf("error = %v, want it to name the unreadable path %s", err, missing)
+	}
+}
+
 // A bare `writ propose` in a real terminal would block forever on stdin
 // with no prompt and no hint. The guard must refuse that case up front
 // while leaving piped and redirected input untouched.
