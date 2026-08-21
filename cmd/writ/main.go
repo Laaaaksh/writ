@@ -17,6 +17,10 @@ const version = "dev"
 func main() {
 	root := newRootCmd()
 	if err := root.Execute(); err != nil {
+		var ec exitCodeErr
+		if errors.As(err, &ec) {
+			os.Exit(ec.code)
+		}
 		if !errors.Is(err, errSilent) {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -37,6 +41,8 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newOpenCmd())
+	root.AddCommand(newStatusCmd())
+	root.AddCommand(newMergeCmd())
 
 	return root
 }
