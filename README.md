@@ -72,6 +72,10 @@ criterion attested auto-merges with no human; anything else names the reasons a 
 needed. `merge` does the same and, if mergeable (or given `--approve`), merges the writ's
 branch into `base` and clears `.writ/current.toml`.
 
+The verification command runs through `sh -c` in the repo root; its exit code alone decides
+pass or fail. It is killed after 10 minutes by default - set `WRIT_VERIFY_TIMEOUT` (a duration
+like `45s` or `30m`) to change that; invalid or non-positive values fall back to the default.
+
 When a proposal is rejected or abandoned, `writ discard` removes the open writ so `propose`
 can start fresh; it touches only `.writ/current.toml`, never branches or commits.
 
