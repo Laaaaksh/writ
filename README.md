@@ -84,3 +84,11 @@ $ writ version
 ```
 
 Prints the writ CLI version.
+
+## Exit codes
+
+For scripting and agents, `writ` signals its decision on the process exit code:
+
+- `0` - success; for `status`, the writ is auto-mergeable, and for `merge`, it merged
+- `1` - a human is needed (always from `status`; from `merge` unless `--approve` was given), or any other error occurred
+- `2` - no writ is open (`status`, `merge`, `discard`)

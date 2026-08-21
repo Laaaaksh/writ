@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,5 +116,70 @@ func TestRunProposeInvalidWrit(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "invalid writ") {
 		t.Errorf("stderr = %q, want validation errors", errOut.String())
+	}
+}
+
+// A bare `writ propose` in a real terminal would block forever on stdin
+// with no prompt and no hint. The guard must refuse that case up front
+// while leaving piped and redirected input untouched.
+func TestRunProposeRefusesInteractiveStdin(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Skipf("cannot open %s: %v", os.DevNull, err)
+	}
+	defer devNull.Close()
+
+	cmd := newProposeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetIn(devNull)
+
+	err = cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected propose to refuse an interactive terminal")
+	}
+	if !strings.Contains(err.Error(), "stdin") || !strings.Contains(err.Error(), "--file") {
+		t.Errorf("error = %v, want it to name stdin and --file", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".writ", "current.toml")); !os.IsNotExist(statErr) {
+		t.Errorf(".writ/current.toml should not exist after the refusal (stat error: %v)", statErr)
+	}
+}
+
+func TestStdinIsInteractive(t *testing.T) {
+	devNull, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Skipf("cannot open %s: %v", os.DevNull, err)
+	}
+	defer devNull.Close()
+	fi, err := devNull.Stat()
+	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+		t.Skipf("%s is not a character device here; cannot use it as a terminal stand-in", os.DevNull)
+	}
+
+	file, err := os.CreateTemp(t.TempDir(), "regular")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+
+	tests := []struct {
+		name string
+		in   io.Reader
+		want bool
+	}{
+		{"character device acts as a terminal", devNull, true},
+		{"pipe-like reader does not", strings.NewReader(validWritTOML), false},
+		{"redirected regular file does not", file, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := stdinIsInteractive(tc.in); got != tc.want {
+				t.Errorf("stdinIsInteractive(%T) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
 	}
 }

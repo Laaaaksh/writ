@@ -52,6 +52,9 @@ func runPropose(cmd *cobra.Command, file string) error {
 			return fmt.Errorf("reading %s: %w", file, err)
 		}
 	} else {
+		if stdinIsInteractive(cmd.InOrStdin()) {
+			return errors.New("propose reads the writ as TOML from stdin; pipe one in or pass --file <path>")
+		}
 		data, err = io.ReadAll(cmd.InOrStdin())
 		if err != nil {
 			return fmt.Errorf("reading writ from stdin: %w", err)
@@ -79,4 +82,18 @@ func runPropose(cmd *cobra.Command, file string) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "  criteria: %d\n", len(w.Criteria))
 	fmt.Fprintln(cmd.OutOrStdout(), "run `writ approve` to review and approve it")
 	return nil
+}
+
+// stdinIsInteractive reports whether r is a terminal, i.e. a human ran
+// `writ propose` bare in a shell. Reading a writ from an interactive
+// terminal blocks forever with no prompt and no hint, so propose refuses
+// up front; piped input (the agent path) and file redirection are not
+// character devices and read normally.
+func stdinIsInteractive(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	if !ok {
+		return false
+	}
+	fi, err := f.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }
