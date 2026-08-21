@@ -124,8 +124,13 @@ func gitMerge(repoDir, base string) error {
 // propose/approve/attest leave .writ/current.toml untracked or modified by
 // design, and that bookkeeping would otherwise block every merge on the
 // documented happy path unless the user happens to gitignore it.
+//
+// --untracked-files=all is passed explicitly so the verdict depends only on
+// repo state, not the user's `status.showUntrackedFiles` display preference,
+// which would otherwise silently hide untracked files from the check (the
+// same explicit flag drift.Compute already uses).
 func isDirty(repoDir string) (bool, error) {
-	out, err := runGitOutput(repoDir, "status", "--porcelain", "-z")
+	out, err := runGitOutput(repoDir, "status", "--porcelain", "-z", "--untracked-files=all")
 	if err != nil {
 		return false, err
 	}

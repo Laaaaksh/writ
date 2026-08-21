@@ -18,6 +18,9 @@ func newTestRepo(t *testing.T) string {
 	git(t, dir, "init", "-q", "-b", "main")
 	git(t, dir, "config", "user.email", "test@example.com")
 	git(t, dir, "config", "user.name", "Test")
+	// Pin the configs a contributor machine may set globally and that would
+	// otherwise break or alter commits made inside these throwaway repos.
+	git(t, dir, "config", "commit.gpgsign", "false")
 	writeFile(t, dir, "README.md", "seed\n")
 	git(t, dir, "add", "README.md")
 	git(t, dir, "commit", "-q", "-m", "initial")
@@ -32,6 +35,7 @@ func newUnbornRepo(t *testing.T) string {
 	git(t, dir, "init", "-q", "-b", "main")
 	git(t, dir, "config", "user.email", "test@example.com")
 	git(t, dir, "config", "user.name", "Test")
+	git(t, dir, "config", "commit.gpgsign", "false")
 	return dir
 }
 

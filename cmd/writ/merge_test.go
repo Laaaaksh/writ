@@ -36,6 +36,10 @@ func newTestRepo(t *testing.T) string {
 	mustRunGit(t, dir, "init", "-q", "-b", "base")
 	mustRunGit(t, dir, "config", "user.email", "test@example.com")
 	mustRunGit(t, dir, "config", "user.name", "Test")
+	// Pin the configs a contributor machine may set globally and that would
+	// otherwise break or alter commits made inside these throwaway repos
+	// (e.g. signing without a usable key).
+	mustRunGit(t, dir, "config", "commit.gpgsign", "false")
 
 	if err := os.WriteFile(filepath.Join(dir, "base.txt"), []byte("base\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -96,6 +100,32 @@ func TestGitMergeRefusesOnDirtyTree(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "uncommitted.txt")); err != nil {
 		t.Errorf("gitMerge on a dirty tree must not discard uncommitted work: %v", err)
+	}
+}
+
+// TestGitMergeDirtyTreeIgnoresStatusConfig proves the dirty-tree verdict
+// depends on repo state alone: even when the local git config hides
+// untracked files from `git status` (status.showUntrackedFiles=no), an
+// untracked file must still make isDirty report true.
+func TestGitMergeDirtyTreeIgnoresStatusShowUntrackedFilesConfig(t *testing.T) {
+	dir := newTestRepo(t)
+	mustRunGit(t, dir, "config", "status.showUntrackedFiles", "no")
+
+	if err := os.WriteFile(filepath.Join(dir, "stray.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dirty, err := isDirty(dir)
+	if err != nil {
+		t.Fatalf("isDirty: %v", err)
+	}
+	if !dirty {
+		t.Error("isDirty = false for an untracked file with status.showUntrackedFiles=no, want true")
+	}
+
+	err = gitMerge(dir, "base")
+	if err == nil || !strings.Contains(err.Error(), "dirty") {
+		t.Errorf("gitMerge error = %v, want it to refuse on the untracked-file dirty tree", err)
 	}
 }
 
