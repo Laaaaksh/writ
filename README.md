@@ -64,7 +64,9 @@ or criteria before agreeing to them. On save and exit, writ re-validates; if inv
 prints the problems and leaves the file in place. `--yes` approves the proposal as-is,
 skipping the editor.
 
-**3. Implement** - the agent does the work described by the writ.
+**3. Implement** - the agent creates a branch off `base` (`git checkout -b <branch>`) and
+does the work described by the writ there, committing as it goes: `merge` refuses a dirty
+working tree, and commits made on `base` itself are invisible to drift.
 
 **4. `writ attest <criterion-id> --note "<how>"`** - the agent (or a human, with `--human`)
 claims that a criterion is met and records how. This is a claim, not a fact: `writ status`
