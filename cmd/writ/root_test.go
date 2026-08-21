@@ -60,6 +60,34 @@ func TestRootExecuteVersion(t *testing.T) {
 	}
 }
 
+// TestRootExecuteVersionFlagMatchesVersionCommand proves `writ --version`
+// and `writ -v` answer with exactly the same line as `writ version` through
+// the real dispatch path - the conventional flag forms scripts probe first.
+func TestRootExecuteVersionFlagMatchesVersionCommand(t *testing.T) {
+	run := func(args ...string) string {
+		root := newRootCmd()
+		var out, errOut bytes.Buffer
+		root.SetOut(&out)
+		root.SetErr(&errOut)
+		root.SetArgs(args)
+		if err := root.Execute(); err != nil {
+			t.Fatalf("writ %s: unexpected error %v", strings.Join(args, " "), err)
+		}
+		return out.String()
+	}
+
+	viaCmd := run("version")
+	for _, flag := range []string{"--version", "-v"} {
+		got := run(flag)
+		if got != viaCmd {
+			t.Errorf("writ %s output = %q, want it identical to `writ version` output %q", flag, got, viaCmd)
+		}
+		if !strings.Contains(got, "writ version") {
+			t.Errorf("writ %s output = %q, want it to name the version", flag, got)
+		}
+	}
+}
+
 // TestRootExecuteBareInvocationShowsHelp proves bare `writ` prints help and
 // succeeds - a first-run user's most likely keystroke.
 func TestRootExecuteBareInvocationShowsHelp(t *testing.T) {

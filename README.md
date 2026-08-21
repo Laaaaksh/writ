@@ -99,7 +99,7 @@ $ writ status
 $ writ version
 ```
 
-Prints the writ CLI version.
+Prints the writ CLI version; `writ --version` (or `-v`) prints the same line.
 
 ## Exit codes
 
