@@ -177,6 +177,127 @@ func TestGitMergeRefusesOnConflict(t *testing.T) {
 	}
 }
 
+func TestGitMergeRefusesWhenAlreadyOnBase(t *testing.T) {
+	dir := newTestRepo(t)
+	mustRunGit(t, dir, "checkout", "-q", "base")
+
+	err := gitMerge(dir, "base")
+	if err == nil {
+		t.Fatal("gitMerge while already on base: expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "already on base") {
+		t.Errorf("gitMerge error = %v, want it to name being on base", err)
+	}
+
+	branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if branch != "base" {
+		t.Errorf("expected to still be on base, got %q", branch)
+	}
+}
+
+func TestGitMergeRefusesDetachedHead(t *testing.T) {
+	dir := newTestRepo(t)
+	mustRunGit(t, dir, "checkout", "-q", "--detach", "HEAD")
+
+	err := gitMerge(dir, "base")
+	if err == nil {
+		t.Fatal("gitMerge on a detached HEAD: expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "detached") {
+		t.Errorf("gitMerge error = %v, want it to mention the detached HEAD", err)
+	}
+
+	head := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if head != "" {
+		t.Errorf("expected HEAD to still be detached, got branch %q", head)
+	}
+}
+
+// TestRunMergeHappyPath drives the documented end-to-end flow through
+// runMerge itself: propose -> approve -> attest -> merge merges the feature
+// branch into base, clears .writ/current.toml, and reports success.
+func TestRunMergeHappyPath(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+	approveYes(t)
+	attestCriterion(t, "c1")
+
+	cmd := newMergeCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("runMerge: %v (stderr: %s)", err, out.String()+errOut.String())
+	}
+	if !strings.Contains(out.String(), "merged into base") {
+		t.Errorf("runMerge output = %q, want it to report the merge into base", out.String())
+	}
+
+	branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if branch != "base" {
+		t.Errorf("expected to be on base after merge, got %q", branch)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".writ", "current.toml")); !os.IsNotExist(err) {
+		t.Errorf("expected .writ/current.toml to be cleared after merge, got stat err %v", err)
+	}
+}
+
+// proposeWritTOML proposes the given TOML in the current test repo.
+func proposeWritTOML(t *testing.T, tomlSrc string) {
+	t.Helper()
+	cmd := newProposeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetIn(strings.NewReader(tomlSrc))
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("propose: %v", err)
+	}
+}
+
+// approveYes approves the open writ as-is, skipping the editor.
+func approveYes(t *testing.T) {
+	t.Helper()
+	cmd := newApproveCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Flags().Set("yes", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+}
+
+// attestCriterion attests id with --note on the open writ.
+func attestCriterion(t *testing.T, id string) {
+	t.Helper()
+	cmd := newAttestCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Flags().Set("note", "covered by tests"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.RunE(cmd, []string{id}); err != nil {
+		t.Fatalf("attest %s: %v", id, err)
+	}
+}
+
 func TestRunMergeNoWritOpen(t *testing.T) {
 	dir := newTestRepo(t)
 	withDir(t, dir)

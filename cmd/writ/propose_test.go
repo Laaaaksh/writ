@@ -71,6 +71,35 @@ func TestRunProposeRefusesWhenAlreadyOpen(t *testing.T) {
 	}
 }
 
+// A corrupt state file must not strand the agent behind an inscrutable TOML
+// error: propose should name `writ discard`, the command that exists exactly
+// to clear broken state.
+func TestRunProposeCorruptStateNamesDiscard(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	stateDir := filepath.Join(dir, ".writ")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, "current.toml"), []byte("not [ valid toml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newProposeCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetIn(strings.NewReader(validWritTOML))
+
+	err := cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected an error when the open state file is corrupt")
+	}
+	if !strings.Contains(err.Error(), "discard") {
+		t.Errorf("error = %v, want it to point at `writ discard`", err)
+	}
+}
+
 func TestRunProposeInvalidWrit(t *testing.T) {
 	dir := newTestRepo(t)
 	withDir(t, dir)

@@ -42,7 +42,7 @@ func runPropose(cmd *cobra.Command, file string) error {
 		if err == nil {
 			return fmt.Errorf("a writ is already open in this repo (.writ/current.toml); run `writ discard` to close it before proposing another")
 		}
-		return err
+		return fmt.Errorf("%w; run `writ discard` to clear the broken state, then propose again", err)
 	}
 
 	var data []byte
