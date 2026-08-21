@@ -10,9 +10,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// version is the writ CLI version. Later slices may override this at build
-// time via -ldflags.
-const version = "dev"
+// defaultVersion, defaultCommit, and defaultDate are the placeholders shown
+// when a build does not inject values via -ldflags (e.g. plain `go build` or
+// `go install`).
+const (
+	defaultVersion = "dev"
+	defaultCommit  = "none"
+	defaultDate    = "unknown"
+)
+
+// version, commit, and date are set at build time via
+// -ldflags "-X main.version=... -X main.commit=... -X main.date=...".
+// They must remain package-level vars: the linker's -X flag can only
+// overwrite a var of type string, not a const.
+var (
+	version = defaultVersion
+	commit  = defaultCommit
+	date    = defaultDate
+)
 
 func main() {
 	root := newRootCmd()
@@ -56,8 +71,18 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print the writ version",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(cmd.OutOrStdout(), "writ version %s\n", version)
+			fmt.Fprintln(cmd.OutOrStdout(), versionString(version, commit, date))
 			return nil
 		},
 	}
+}
+
+// versionString renders the version line. When commit and date are still at
+// their build-time defaults (a plain `go build` or `go install`), it omits
+// the parenthetical rather than printing empty parentheses.
+func versionString(version, commit, date string) string {
+	if commit == defaultCommit && date == defaultDate {
+		return fmt.Sprintf("writ version %s", version)
+	}
+	return fmt.Sprintf("writ version %s (commit %s, built %s)", version, commit, date)
 }

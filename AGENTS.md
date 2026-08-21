@@ -10,6 +10,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - `cmd/writ` commands signal a specific process exit code (0 auto-mergeable, 1 needs human, 2 no writ open) by returning the unexported `exitCodeErr{code}` from `RunE`; `main()` unwraps it via `errors.As` before falling back to the default exit-1 path. Command tests that need a real repo `os.Chdir` into a `t.TempDir()` git repo, since `repoRoot()` shells out to `git rev-parse --show-toplevel` against the process cwd rather than taking a directory argument.
 - This repo is on the captain's **personal** GitHub account (`Laaaaksh`), while the shell defaults to a work `gh` profile. GitHub CLI operations need `GH_CONFIG_DIR="$HOME/.config/gh-personal"` exported first; verify with `gh api user --jq .login` (must print `Laaaaksh`). The default branch is `master`, not `main`.
 - A repo commit-identity guard hook requires the git author email to match the personal class (`laksh.sadhwani07@gmail.com`) for this remote — set via local (not global) `git config user.email` if a commit is rejected.
+- `cmd/writ/main.go`'s `version`, `commit`, and `date` must stay package-level `var`s (with `default*` const placeholders), never `const` — goreleaser's `-X main.version=...` ldflags silently no-op against a `const` string, so every released binary would misreport itself. `versionString` is the single place that renders them; it omits the `(commit ..., built ...)` suffix when both are still at their defaults.
 
 ## Maintaining this file
 
