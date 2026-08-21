@@ -48,6 +48,14 @@ func Decide(w *writ.Writ, d *drift.Report, e *evidence.Report) Decision {
 		reasons = append(reasons, "writ has not been approved")
 	}
 
+	// A writ with no criteria would pass the loop below vacuously - zero of
+	// zero criteria met looks identical to all met - so an approved,
+	// drift-free writ whose criteria were deleted (a bad approve edit leaves
+	// the broken file on disk) could auto-merge with nothing checked.
+	if len(w.Criteria) == 0 {
+		reasons = append(reasons, "writ has no acceptance criteria")
+	}
+
 	for _, c := range w.Criteria {
 		switch {
 		case c.Met == nil:
