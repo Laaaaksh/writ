@@ -161,6 +161,45 @@ func TestGitMergeIgnoresWritState(t *testing.T) {
 	}
 }
 
+// TestWritStateTracked proves the decide()-level tracked-state guard sees
+// the state file exactly when git does: an untracked .writ/current.toml is
+// writ's designed resting shape and must read as untracked, while staging
+// alone already counts - a staged copy breaks checkout onto base just like
+// a committed one.
+func TestWritStateTracked(t *testing.T) {
+	dir := newTestRepo(t)
+
+	tracked, err := writStateTracked(dir)
+	if err != nil || tracked {
+		t.Fatalf("repo without any writ state: writStateTracked = %v, %v; want false, nil", tracked, err)
+	}
+
+	stateDir := filepath.Join(dir, ".writ")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, "current.toml"), []byte("id = \"w1\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tracked, err = writStateTracked(dir)
+	if err != nil || tracked {
+		t.Fatalf("untracked state file: writStateTracked = %v, %v; want false, nil", tracked, err)
+	}
+
+	mustRunGit(t, dir, "add", ".writ/current.toml")
+	tracked, err = writStateTracked(dir)
+	if err != nil || !tracked {
+		t.Fatalf("staged state file: writStateTracked = %v, %v; want true, nil", tracked, err)
+	}
+
+	mustRunGit(t, dir, "commit", "-q", "-m", "commit writ state")
+	tracked, err = writStateTracked(dir)
+	if err != nil || !tracked {
+		t.Fatalf("committed state file: writStateTracked = %v, %v; want true, nil", tracked, err)
+	}
+}
+
 func TestGitMergeSuccessCleanMerge(t *testing.T) {
 	dir := newTestRepo(t)
 

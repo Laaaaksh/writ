@@ -309,3 +309,76 @@ func TestRunProposeNamesUnknownKeys(t *testing.T) {
 		t.Errorf("refused proposal must not create state (stat error: %v)", statErr)
 	}
 }
+
+// TestRunProposeSeedsLocalExclude proves propose proactively protects the
+// documented implement step: in a repo with no ignore rule covering .writ/,
+// propose seeds the repo-local .git/info/exclude so a wholesale `git add -A`
+// can never track .writ/current.toml - the exact tracked-state breakage the
+// decide() guard would otherwise have to refuse at status/merge time.
+// Seeding must also be idempotent across re-proposals.
+func TestRunProposeSeedsLocalExclude(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	proposeWritTOML(t, validWritTOML)
+
+	excludePath := filepath.Join(dir, ".git", "info", "exclude")
+	data, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("propose did not seed .git/info/exclude: %v", err)
+	}
+	if n := strings.Count(string(data), ".writ/"); n != 1 {
+		t.Errorf("seeded exclude mentions .writ/ %d times, want exactly 1:\n%s", n, data)
+	}
+
+	// git itself must agree the state file is now excluded, so a blanket
+	// add during implement cannot track writ's state behind the user's back.
+	if out := mustRunGit(t, dir, "check-ignore", ".writ/current.toml"); strings.TrimSpace(out) == "" {
+		t.Error("check-ignore reports .writ/current.toml not excluded after seeding")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "feature.txt"), []byte("feature v2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustRunGit(t, dir, "add", "-A")
+	mustRunGit(t, dir, "commit", "-q", "-m", "implement")
+	if out := mustRunGit(t, dir, "ls-files", ".writ"); strings.TrimSpace(out) != "" {
+		t.Errorf("blanket `git add -A` tracked writ state after seeding: %q", out)
+	}
+
+	// Re-proposing after a discard must not duplicate the seeded line.
+	discardCmd := newDiscardCmd()
+	discardCmd.SetOut(&bytes.Buffer{})
+	discardCmd.SetErr(&bytes.Buffer{})
+	if err := discardCmd.RunE(discardCmd, nil); err != nil {
+		t.Fatalf("discard: %v", err)
+	}
+	proposeWritTOML(t, validWritTOML)
+
+	data, err = os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(data), ".writ/"); n != 1 {
+		t.Errorf("re-propose duplicated the seeded line (%d occurrences of .writ/):\n%s", n, data)
+	}
+}
+
+// TestRunProposeSkipsExcludeSeedWhenAlreadyIgnored proves seeding stays out
+// of the way when the user already ignores .writ/ through their own
+// committed .gitignore - no redundant lines land in .git/info/exclude.
+func TestRunProposeSkipsExcludeSeedWhenAlreadyIgnored(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	gitignore := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte(".writ/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	proposeWritTOML(t, validWritTOML)
+
+	excludePath := filepath.Join(dir, ".git", "info", "exclude")
+	if data, err := os.ReadFile(excludePath); err == nil && strings.Contains(string(data), ".writ/") {
+		t.Errorf("propose seeded info/exclude although .gitignore already covers .writ/:\n%s", data)
+	}
+}

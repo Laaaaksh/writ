@@ -496,3 +496,108 @@ command = "true"
 		})
 	}
 }
+
+// TestDecideRefusesTrackedWritState locks the environmental axis where the
+// user's own git habits break the documented flow: committing writ's state
+// file (a wholesale `git add -A` during implement, or an older writ that
+// seeded no exclude) tracks .writ/current.toml, and from then on approve and
+// attest save onto a tracked-and-now-modified file, merge's checkout of base
+// dies on raw git output even though drift is zero, and fully committed
+// variants instead re-track a stale copy onto base, dirtying the tree after
+// every merge. decide() must refuse both status and merge --approve up front
+// with untrack guidance instead of rendering Auto-mergeable into that
+// dead end - and the documented flow must complete cleanly once the state
+// file is untracked again.
+func TestDecideRefusesTrackedWritState(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+	// The agent implements and commits everything, state file included
+	// (-f because propose seeded .git/info/exclude exactly to prevent this).
+	if err := os.WriteFile(filepath.Join(dir, "feature.txt"), []byte("feature v2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustRunGit(t, dir, "add", "-f", "-A")
+	mustRunGit(t, dir, "commit", "-q", "-m", "implement")
+	// writ then saves onto its own tracked file: tracked and locally modified.
+	approveYes(t)
+	attestCriterion(t, "c1")
+
+	run := func(cmd *cobra.Command, args []string) (*bytes.Buffer, error) {
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		return &out, cmd.RunE(cmd, args)
+	}
+
+	statusCmd := newStatusCmd()
+	out, err := run(statusCmd, nil)
+	if err == nil {
+		t.Fatal("status over a git-tracked writ state: expected an error")
+	}
+	if ec, ok := err.(exitCodeErr); ok && ec.code == 2 {
+		t.Errorf("status error = %v, want a plain error (exit 1), not no-writ-open", err)
+	}
+	if !strings.Contains(err.Error(), "tracked by git") || !strings.Contains(err.Error(), "rm --cached") {
+		t.Errorf("status error = %v, want it to name the tracked state and the untrack remedy", err)
+	}
+	if strings.Contains(out.String(), "Auto-mergeable") {
+		t.Errorf("status output %q must not render an auto-mergeable verdict over tracked writ state", out.String())
+	}
+
+	mergeCmd := newMergeCmd()
+	if err := mergeCmd.Flags().Set("approve", "true"); err != nil {
+		t.Fatal(err)
+	}
+	outM, err := run(mergeCmd, nil)
+	if err == nil {
+		t.Fatal("merge --approve over a git-tracked writ state: expected a refusal")
+	}
+	if !strings.Contains(err.Error(), "rm --cached") {
+		t.Errorf("merge --approve error = %v, want it to carry the untrack remedy", err)
+	}
+	if strings.Contains(outM.String(), "merged into") {
+		t.Errorf("merge --approve output %q must not report a merge", outM.String())
+	}
+	if branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current")); branch == "base" {
+		t.Error("a refused merge must not check out base")
+	}
+	statePath := filepath.Join(dir, ".writ", "current.toml")
+	if _, statErr := os.Stat(statePath); statErr != nil {
+		t.Errorf("a refused merge must leave the open writ in place: %v", statErr)
+	}
+
+	// Recovery: untracking restores the documented flow - merge lands on
+	// base with no phantom deletion left dirtying the tree behind it.
+	mustRunGit(t, dir, "rm", "-q", "--cached", ".writ/current.toml")
+	mustRunGit(t, dir, "commit", "-q", "-m", "untrack writ state")
+
+	finalCmd := newMergeCmd()
+	outF, err := run(finalCmd, nil)
+	if err != nil {
+		t.Fatalf("merge after untracking writ state: %v", err)
+	}
+	if !strings.Contains(outF.String(), "merged into base") {
+		t.Errorf("merge output %q, want it to report landing on base", outF.String())
+	}
+	if branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current")); branch != "base" {
+		t.Errorf("expected to land on base after untracking, got %q", branch)
+	}
+	if status := mustRunGit(t, dir, "status", "--porcelain"); strings.TrimSpace(status) != "" {
+		t.Errorf("post-merge tree must be clean, got:\n%s", status)
+	}
+}

@@ -54,6 +54,11 @@ or an `attestation` is refused, because claims are recorded with `writ attest` o
 human approves. Drafting a concrete proposal - not hand-authoring path globs from a blank
 file - is the agent's job, because a lazy scope like `app/**` makes drift meaningless.
 
+propose also keeps writ's bookkeeping out of your history: when no ignore rule covers
+`.writ/`, it seeds the repo-local `.git/info/exclude`, so committing your work wholesale
+(`git add -A`) can never track the state file - and if it does end up tracked anyway,
+`status` and `merge` refuse with instructions to untrack it.
+
 **2. `writ approve`** - a human reviews the proposal, opening it in `$EDITOR` to tighten scope
 or criteria before agreeing to them. On save and exit, writ re-validates; if invalid, it
 prints the problems and leaves the file in place. `--yes` approves the proposal as-is,

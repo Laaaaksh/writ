@@ -155,6 +155,22 @@ func isWritStateEntry(tok string) bool {
 	return path == writ.Dir || strings.HasPrefix(path, writ.Dir+"/")
 }
 
+// writStateTracked reports whether git knows about writ's own state file,
+// .writ/current.toml - committed or merely staged, since ls-files reads the
+// index and a staged copy poisons checkout exactly like a committed one. A
+// tracked state file breaks the merge writ performs: later saves leave it
+// locally modified, so checking out base dies on git's raw "local changes
+// would be overwritten" output, while a copy committed on the branch merges
+// back onto base as stale state and leaves a phantom deletion dirtying the
+// tree after every merge.
+func writStateTracked(repoDir string) (bool, error) {
+	out, err := runGitOutput(repoDir, "ls-files", "-z", "--", writ.Dir+"/current.toml")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
 func currentBranch(repoDir string) (string, error) {
 	out, err := runGitOutput(repoDir, "branch", "--show-current")
 	if err != nil {

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -78,6 +81,7 @@ func runPropose(cmd *cobra.Command, file string) error {
 	if err := w.Save(repoDir); err != nil {
 		return err
 	}
+	ensureWritExcluded(cmd, repoDir)
 
 	fmt.Fprintf(cmd.OutOrStdout(), "writ proposed: %s\n", w.Intent)
 	fmt.Fprintf(cmd.OutOrStdout(), "  scope:    %s\n", strings.Join(w.Scope, ", "))
@@ -98,4 +102,78 @@ func stdinIsInteractive(r io.Reader) bool {
 	}
 	fi, err := f.Stat()
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+// ensureWritExcluded makes a best effort to keep writ's runtime state out
+// of the user's commits. Without an ignore rule covering .writ/, a blanket
+// `git add -A` during implement tracks .writ/current.toml, and a tracked
+// state file breaks writ: later saves leave it locally modified, so merge's
+// checkout of base dies on raw git output, while copies committed on the
+// branch come back onto base as stale state after merging. Unless some
+// ignore rule already covers the state file, it seeds .writ/ into the
+// repo-local .git/info/exclude - local to this clone, never pushed or
+// committed. Any failure is only a warning, never a propose failure:
+// decide() still refuses genuinely tracked state at status/merge time.
+func ensureWritExcluded(cmd *cobra.Command, repoDir string) {
+	stateRel := writ.Dir + "/current.toml"
+
+	if ignored, err := gitPathIgnored(repoDir, stateRel); err == nil && ignored {
+		return
+	}
+
+	gitDir, err := runGitOutput(repoDir, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		warnExcludeSeedFailed(cmd, err)
+		return
+	}
+
+	excludeDir := filepath.Join(strings.TrimSpace(gitDir), "info")
+	path := filepath.Join(excludeDir, "exclude")
+	if data, err := os.ReadFile(path); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.TrimSpace(line) == writ.Dir+"/" {
+				return // already seeded; nothing to add
+			}
+		}
+	}
+
+	if err := os.MkdirAll(excludeDir, 0o755); err != nil {
+		warnExcludeSeedFailed(cmd, err)
+		return
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		warnExcludeSeedFailed(cmd, err)
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "\n# Added by writ so its runtime state stays out of your commits.\n%s/\n", writ.Dir)
+}
+
+// warnExcludeSeedFailed reports an exclude-seeding failure without failing
+// the propose that triggered it.
+func warnExcludeSeedFailed(cmd *cobra.Command, cause error) {
+	fmt.Fprintf(cmd.ErrOrStderr(),
+		"warning: could not keep .writ/ out of git commits (%v); avoid committing .writ/current.toml\n", cause)
+}
+
+// gitPathIgnored reports whether git would exclude p (repo-relative) from
+// `git add` via any ignore mechanism (.gitignore, .git/info/exclude,
+// core.excludesFile). check-ignore signals the verdict through its exit
+// code: 0 for ignored, 1 for not ignored, anything else a real failure.
+func gitPathIgnored(repoDir, p string) (bool, error) {
+	cmd := exec.Command("git", "check-ignore", "-q", p)
+	cmd.Dir = repoDir
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && ee.ExitCode() == 1 {
+		return false, nil
+	}
+	return false, fmt.Errorf("git check-ignore -q %s: %w: %s", p, err, strings.TrimSpace(out.String()))
 }

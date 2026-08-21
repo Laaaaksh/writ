@@ -83,6 +83,11 @@ func loadOpenWrit(cmd *cobra.Command, repoDir string) (*writ.Writ, error) {
 // base is invisible to drift, and no merge exists to perform - without this
 // guard, an agent doing all its work on the default branch gets a green
 // verdict from status and then a raw git-level refusal from merge.
+//
+// Finally it refuses when git tracks writ's own state file: committing
+// .writ/current.toml leaves stale copies behind that block checkout onto
+// base and dirty every merge, so both commands must stop before drift can
+// report anything about such a broken setup.
 func decide(repoDir string, w *writ.Writ) (gate.Decision, *drift.Report, *evidence.Report, error) {
 	var covered []string
 	for _, s := range w.Scope {
@@ -94,6 +99,17 @@ func decide(repoDir string, w *writ.Writ) (gate.Decision, *drift.Report, *eviden
 		return gate.Decision{}, nil, nil, fmt.Errorf(
 			"invalid writ: scope entry(s) %s cover the whole repo, which defeats drift detection; run `writ discard` and propose again",
 			strings.Join(covered, ", "))
+	}
+
+	tracked, err := writStateTracked(repoDir)
+	if err != nil {
+		return gate.Decision{}, nil, nil, fmt.Errorf("checking whether writ state is tracked by git: %w", err)
+	}
+	if tracked {
+		state := writ.Dir + "/current.toml"
+		return gate.Decision{}, nil, nil, fmt.Errorf(
+			"writ state %s is tracked by git; committing writ's bookkeeping leaves a stale copy behind that blocks checkout and dirties every merge onto base - untrack it with `git rm --cached %s`, commit that change, then run this command again",
+			state, state)
 	}
 
 	current, err := currentBranch(repoDir)
