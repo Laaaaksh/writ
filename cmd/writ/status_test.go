@@ -287,6 +287,121 @@ command = "true"
 	}
 }
 
+// TestDecideRefusesOnBaseBranch locks the last vacuous-drift axis into CI:
+// with HEAD on the writ's own base branch the base...HEAD diff is empty, so
+// every commit made on base is invisible to drift and there is no branch to
+// merge - yet the pipeline would happily report zero drift and render
+// Auto-mergeable before merge dead-ended on gitMerge's raw already-on-base
+// refusal, even under --approve. Both status and merge must instead refuse
+// up front with guidance to move the work onto a branch off base.
+func TestDecideRefusesOnBaseBranch(t *testing.T) {
+	t.Run("committed repo", func(t *testing.T) {
+		dir := newTestRepo(t)
+		withDir(t, dir)
+		mustRunGit(t, dir, "checkout", "-q", "base")
+
+		proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+		approveYes(t)
+		attestCriterion(t, "c1")
+
+		runStatusCmd := newStatusCmd()
+		var out, _ bytes.Buffer
+		runStatusCmd.SetOut(&out)
+		err := runStatusCmd.RunE(runStatusCmd, nil)
+		if err == nil {
+			t.Fatal("status while on base: expected an error")
+		}
+		if ec, ok := err.(exitCodeErr); ok && ec.code == 2 {
+			t.Errorf("status error = %v, want a plain error, not no-writ-open", err)
+		}
+		if !strings.Contains(err.Error(), `base branch "base"`) || !strings.Contains(err.Error(), "checkout -b") {
+			t.Errorf("status error = %v, want it to name the base branch and how to leave it", err)
+		}
+		if strings.Contains(out.String(), "Auto-mergeable") {
+			t.Errorf("status output %q must not render an auto-mergeable verdict on base", out.String())
+		}
+
+		mergeCmd := newMergeCmd()
+		if err := mergeCmd.Flags().Set("approve", "true"); err != nil {
+			t.Fatal(err)
+		}
+		var outM, _ bytes.Buffer
+		mergeCmd.SetOut(&outM)
+		err = mergeCmd.RunE(mergeCmd, nil)
+		if err == nil {
+			t.Fatal("merge --approve while on base: expected a refusal")
+		}
+		if !strings.Contains(err.Error(), `base branch "base"`) {
+			t.Errorf("merge --approve error = %v, want it to name being on base", err)
+		}
+		if strings.Contains(outM.String(), "merged into") {
+			t.Errorf("merge --approve output %q must not report a merge", outM.String())
+		}
+		if branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current")); branch != "base" {
+			t.Errorf("a refused command must not change branches, got %q", branch)
+		}
+		if _, statErr := os.Stat(filepath.Join(dir, ".writ", "current.toml")); statErr != nil {
+			t.Errorf("a refused command must leave the state file in place: %v", statErr)
+		}
+	})
+
+	// A zero-commit repo has an unborn HEAD whose symbolic branch (say main)
+	// equals any sensible base, so this is also the README-example first-run
+	// flow; refusing here replaces an exit-0 verdict followed by merge's raw
+	// refusal with one clear message at decision time.
+	t.Run("unborn head zero-commit repo", func(t *testing.T) {
+		dir := t.TempDir()
+		mustRunGit(t, dir, "init", "-q", "-b", "main")
+		mustRunGit(t, dir, "config", "user.email", "test@example.com")
+		mustRunGit(t, dir, "config", "user.name", "Test")
+		withDir(t, dir)
+
+		proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "main"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+		approveYes(t)
+		attestCriterion(t, "c1")
+
+		runStatusCmd := newStatusCmd()
+		var out, _ bytes.Buffer
+		runStatusCmd.SetOut(&out)
+		err := runStatusCmd.RunE(runStatusCmd, nil)
+		if err == nil {
+			t.Fatal("status on unborn HEAD named as its own base: expected an error")
+		}
+		if !strings.Contains(err.Error(), `base branch "main"`) || !strings.Contains(err.Error(), "checkout -b") {
+			t.Errorf("status error = %v, want it to name the base branch and how to leave it", err)
+		}
+		if strings.Contains(out.String(), "Auto-mergeable") {
+			t.Errorf("status output %q must not render an auto-mergeable verdict on unborn base", out.String())
+		}
+	})
+}
+
 // TestDecideRefusesUnresolvableBase locks the base axis of the vacuous-drift
 // defense into CI: intake accepts any non-empty base because a zero-commit
 // repo has no branches yet, so a typo at propose time - or a blanked base

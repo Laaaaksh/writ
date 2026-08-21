@@ -77,6 +77,12 @@ func loadOpenWrit(cmd *cobra.Command, repoDir string) (*writ.Writ, error) {
 // means the state file was hand-edited or broken after approval, and drift
 // against such a scope is vacuously zero - the writ would auto-merge with
 // arbitrary unreviewed changes.
+//
+// It likewise refuses to evaluate a writ while HEAD sits on the writ's own
+// base branch: the base...HEAD diff is empty there, so every commit made on
+// base is invisible to drift, and no merge exists to perform - without this
+// guard, an agent doing all its work on the default branch gets a green
+// verdict from status and then a raw git-level refusal from merge.
 func decide(repoDir string, w *writ.Writ) (gate.Decision, *drift.Report, *evidence.Report, error) {
 	var covered []string
 	for _, s := range w.Scope {
@@ -88,6 +94,16 @@ func decide(repoDir string, w *writ.Writ) (gate.Decision, *drift.Report, *eviden
 		return gate.Decision{}, nil, nil, fmt.Errorf(
 			"invalid writ: scope entry(s) %s cover the whole repo, which defeats drift detection; run `writ discard` and propose again",
 			strings.Join(covered, ", "))
+	}
+
+	current, err := currentBranch(repoDir)
+	if err != nil {
+		return gate.Decision{}, nil, nil, err
+	}
+	if current != "" && current == w.Base {
+		return gate.Decision{}, nil, nil, fmt.Errorf(
+			"you are on base branch %q, where nothing can be merged and commits on base are invisible to drift; do this writ's work on a branch created off %q (git checkout -b <branch>)",
+			w.Base, w.Base)
 	}
 
 	d, err := drift.Compute(w, repoDir)
