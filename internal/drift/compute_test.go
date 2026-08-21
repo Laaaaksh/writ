@@ -24,6 +24,17 @@ func newTestRepo(t *testing.T) string {
 	return dir
 }
 
+// newUnbornRepo creates a git repo with no commits at all: HEAD points at a
+// branch that does not exist yet.
+func newUnbornRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	git(t, dir, "init", "-q", "-b", "main")
+	git(t, dir, "config", "user.email", "test@example.com")
+	git(t, dir, "config", "user.name", "Test")
+	return dir
+}
+
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
@@ -286,6 +297,28 @@ func TestCompute_SimilarlyNamedPathsAreNotExcludedByPrefix(t *testing.T) {
 	}
 	if _, ok := findChange(report.Drift, ".writ-backup"); !ok {
 		t.Errorf("expected .writ-backup to still be reported as drift, got %+v", report.Drift)
+	}
+}
+
+func TestCompute_UnbornHeadClassifiesStagedAndUntrackedWork(t *testing.T) {
+	dir := newUnbornRepo(t)
+	writeFile(t, dir, "app/new.go", "package app\n")
+	git(t, dir, "add", "app/new.go")
+	writeFile(t, dir, "stray.txt", "not mine\n")
+
+	report, err := Compute(testWrit("app/**"), dir)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	fc, ok := findChange(report.InScope, "app/new.go")
+	if !ok {
+		t.Fatalf("expected staged app/new.go in scope, got %+v / %+v", report.InScope, report.Drift)
+	}
+	if fc.Added != 1 {
+		t.Errorf("expected 1 added line, got %+v", fc)
+	}
+	if _, ok := findChange(report.Drift, "stray.txt"); !ok {
+		t.Errorf("expected untracked stray.txt in drift, got %+v / %+v", report.InScope, report.Drift)
 	}
 }
 
