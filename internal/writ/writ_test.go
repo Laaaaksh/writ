@@ -23,6 +23,24 @@ func validWrit() *Writ {
 	}
 }
 
+func approvedWrit() *Writ {
+	met := true
+	w := validWrit()
+	w.Approved = &Approval{At: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)}
+	w.Criteria[0].Attestation = &Attestation{
+		By:   "agent",
+		Note: "covered by unit tests",
+		At:   time.Date(2026, 1, 2, 1, 0, 0, 0, time.UTC),
+	}
+	w.Criteria[1].Met = &met
+	w.Criteria[1].Attestation = &Attestation{
+		By:   "human",
+		Note: "confirmed manually",
+		At:   time.Date(2026, 1, 2, 2, 0, 0, 0, time.UTC),
+	}
+	return w
+}
+
 func TestSaveLoadRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	w := validWrit()
@@ -56,6 +74,50 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if got.Verify.Command != w.Verify.Command {
 		t.Fatalf("Verify mismatch: got %+v, want %+v", got.Verify, w.Verify)
+	}
+}
+
+func TestSaveLoadRoundTripApprovalAndAttestations(t *testing.T) {
+	dir := t.TempDir()
+	w := approvedWrit()
+
+	if err := w.Save(dir); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if got.Approved == nil {
+		t.Fatal("Approved should round-trip non-nil")
+	}
+	if !got.Approved.At.Equal(w.Approved.At) {
+		t.Errorf("Approved.At mismatch: got %v, want %v", got.Approved.At, w.Approved.At)
+	}
+
+	if len(got.Criteria) != 2 {
+		t.Fatalf("Criteria mismatch: got %+v", got.Criteria)
+	}
+
+	c0 := got.Criteria[0]
+	if c0.Attestation == nil {
+		t.Fatal("Criteria[0].Attestation should round-trip non-nil")
+	}
+	if c0.Attestation.By != "agent" || c0.Attestation.Note != "covered by unit tests" {
+		t.Errorf("Criteria[0].Attestation mismatch: got %+v", c0.Attestation)
+	}
+	if !c0.Attestation.At.Equal(w.Criteria[0].Attestation.At) {
+		t.Errorf("Criteria[0].Attestation.At mismatch: got %v, want %v", c0.Attestation.At, w.Criteria[0].Attestation.At)
+	}
+
+	c1 := got.Criteria[1]
+	if c1.Attestation == nil || c1.Attestation.By != "human" {
+		t.Errorf("Criteria[1].Attestation mismatch: got %+v", c1.Attestation)
+	}
+	if c1.Met == nil || !*c1.Met {
+		t.Errorf("Criteria[1].Met should round-trip true, got %+v", c1.Met)
 	}
 }
 
@@ -140,6 +202,28 @@ func TestValidateRejections(t *testing.T) {
 			name:   "empty verify command",
 			mutate: func(w *Writ) { w.Verify.Command = "" },
 		},
+		{
+			name: "attestation with bad By",
+			mutate: func(w *Writ) {
+				met := true
+				w.Criteria[0].Met = &met
+				w.Criteria[0].Attestation = &Attestation{By: "robot", Note: "n"}
+			},
+		},
+		{
+			name: "attestation with nil Met",
+			mutate: func(w *Writ) {
+				w.Criteria[1].Attestation = &Attestation{By: "agent", Note: "n"}
+			},
+		},
+		{
+			name: "attestation with false Met",
+			mutate: func(w *Writ) {
+				notMet := false
+				w.Criteria[0].Met = &notMet
+				w.Criteria[0].Attestation = &Attestation{By: "agent", Note: "n"}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -150,6 +234,12 @@ func TestValidateRejections(t *testing.T) {
 				t.Fatalf("Validate: expected an error, got nil")
 			}
 		})
+	}
+}
+
+func TestValidateApprovedAndAttestedIsValid(t *testing.T) {
+	if err := approvedWrit().Validate(); err != nil {
+		t.Fatalf("Validate on an approved, attested writ: %v", err)
 	}
 }
 

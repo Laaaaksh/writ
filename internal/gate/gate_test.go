@@ -11,15 +11,20 @@ import (
 
 func boolPtr(b bool) *bool { return &b }
 
+func attestation(by string) *writ.Attestation {
+	return &writ.Attestation{By: by, Note: "verified"}
+}
+
 func cleanWrit() *writ.Writ {
 	return &writ.Writ{
-		ID:     "w1",
-		Intent: "do the thing",
-		Base:   "main",
-		Scope:  []string{"internal/foo/**"},
+		ID:       "w1",
+		Intent:   "do the thing",
+		Base:     "main",
+		Scope:    []string{"internal/foo/**"},
+		Approved: &writ.Approval{},
 		Criteria: []writ.Criterion{
-			{ID: "c1", Text: "the thing works", Met: boolPtr(true)},
-			{ID: "c2", Text: "tests pass", Met: boolPtr(true)},
+			{ID: "c1", Text: "the thing works", Met: boolPtr(true), Attestation: attestation("agent")},
+			{ID: "c2", Text: "tests pass", Met: boolPtr(true), Attestation: attestation("human")},
 		},
 		Verify: writ.VerifySpec{Command: "go test ./..."},
 	}
@@ -113,6 +118,44 @@ func TestDecide(t *testing.T) {
 			wantMergeable:  false,
 			wantNeedsHuman: true,
 			wantReasonHas:  "no verification command is configured",
+		},
+		{
+			name: "writ not approved",
+			w: func() *writ.Writ {
+				w := cleanWrit()
+				w.Approved = nil
+				return w
+			}(),
+			d:              cleanDrift(),
+			e:              passingEvidence(),
+			wantMergeable:  false,
+			wantNeedsHuman: true,
+			wantReasonHas:  "writ has not been approved",
+		},
+		{
+			name: "criterion met but not attested",
+			w: func() *writ.Writ {
+				w := cleanWrit()
+				w.Criteria = []writ.Criterion{{ID: "c1", Text: "the thing works", Met: boolPtr(true)}}
+				return w
+			}(),
+			d:              cleanDrift(),
+			e:              passingEvidence(),
+			wantMergeable:  false,
+			wantNeedsHuman: true,
+			wantReasonHas:  `criterion "c1" not attested`,
+		},
+		{
+			name: "criterion met and attested by agent auto-merges",
+			w: func() *writ.Writ {
+				w := cleanWrit()
+				w.Criteria = []writ.Criterion{{ID: "c1", Text: "the thing works", Met: boolPtr(true), Attestation: attestation("agent")}}
+				return w
+			}(),
+			d:              cleanDrift(),
+			e:              passingEvidence(),
+			wantMergeable:  true,
+			wantNeedsHuman: false,
 		},
 		{
 			name: "criterion unassessed",

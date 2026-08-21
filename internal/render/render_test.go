@@ -14,15 +14,16 @@ func boolPtr(b bool) *bool { return &b }
 
 func sampleWrit() *writ.Writ {
 	return &writ.Writ{
-		ID:     "w1",
-		Intent: "add cancel action to AI calls",
-		Base:   "main",
-		Scope:  []string{"internal/foo/**"},
+		ID:       "w1",
+		Intent:   "add cancel action to AI calls",
+		Base:     "main",
+		Scope:    []string{"internal/foo/**"},
+		Approved: &writ.Approval{},
 		Criteria: []writ.Criterion{
-			{ID: "c1", Text: "a", Met: boolPtr(true)},
-			{ID: "c2", Text: "b", Met: boolPtr(true)},
-			{ID: "c3", Text: "c", Met: boolPtr(true)},
-			{ID: "c4", Text: "d", Met: boolPtr(true)},
+			{ID: "c1", Text: "a", Met: boolPtr(true), Attestation: &writ.Attestation{By: "agent", Note: "n1"}},
+			{ID: "c2", Text: "b", Met: boolPtr(true), Attestation: &writ.Attestation{By: "agent", Note: "n2"}},
+			{ID: "c3", Text: "c", Met: boolPtr(true), Attestation: &writ.Attestation{By: "agent", Note: "n3"}},
+			{ID: "c4", Text: "d", Met: boolPtr(true), Attestation: &writ.Attestation{By: "agent", Note: "n4"}},
 		},
 		Verify: writ.VerifySpec{Command: "go test ./..."},
 	}
@@ -41,7 +42,11 @@ func TestStatusAutoMergeable(t *testing.T) {
 	want := "" +
 		"  writ    add cancel action to AI calls\n" +
 		"\n" +
-		"  CONTRACT     4/4 criteria met\n" +
+		"  CONTRACT     4/4 criteria\n" +
+		"                 c1   claimed by agent   \"n1\"\n" +
+		"                 c2   claimed by agent   \"n2\"\n" +
+		"                 c3   claimed by agent   \"n3\"\n" +
+		"                 c4   claimed by agent   \"n4\"\n" +
 		"  EVIDENCE     370 tests, 0 failures\n" +
 		"  IN SCOPE     12 files\n" +
 		"  DRIFT        none\n" +
@@ -70,7 +75,11 @@ func TestStatusWithDrift(t *testing.T) {
 	want := "" +
 		"  writ    add cancel action to AI calls\n" +
 		"\n" +
-		"  CONTRACT     4/4 criteria met\n" +
+		"  CONTRACT     4/4 criteria\n" +
+		"                 c1   claimed by agent   \"n1\"\n" +
+		"                 c2   claimed by agent   \"n2\"\n" +
+		"                 c3   claimed by agent   \"n3\"\n" +
+		"                 c4   claimed by agent   \"n4\"\n" +
 		"  EVIDENCE     370 tests, 0 failures\n" +
 		"  IN SCOPE     12 files\n" +
 		"  DRIFT        2 files outside declared scope\n" +
@@ -123,9 +132,9 @@ func TestStatusTruncatesDriftListAt20(t *testing.T) {
 			fileLines++
 		}
 	}
-	// 20 shown files + 1 "... and N more" line.
-	if fileLines != 21 {
-		t.Errorf("expected 21 indented lines (20 files + truncation notice), got %d:\n%s", fileLines, got)
+	// 4 criterion lines + 20 shown files + 1 "... and N more" line.
+	if fileLines != 25 {
+		t.Errorf("expected 25 indented lines (4 criteria + 20 files + truncation notice), got %d:\n%s", fileLines, got)
 	}
 	if !strings.Contains(got, "... and 5 more") {
 		t.Errorf("Status missing truncation notice for the remaining 5 files:\n%s", got)
@@ -133,6 +142,46 @@ func TestStatusTruncatesDriftListAt20(t *testing.T) {
 	// The 21st file must not appear verbatim as its own listed entry.
 	if strings.Count(got, ".go") != 20 {
 		t.Errorf("expected exactly 20 listed files, got %d occurrences of \".go\":\n%s", strings.Count(got, ".go"), got)
+	}
+}
+
+func TestStatusShowsAllThreeProvenanceStates(t *testing.T) {
+	w := &writ.Writ{
+		ID:       "w1",
+		Intent:   "add cancel action to AI calls",
+		Base:     "main",
+		Scope:    []string{"internal/foo/**"},
+		Approved: &writ.Approval{},
+		Criteria: []writ.Criterion{
+			{ID: "cancels-queued", Text: "a", Met: boolPtr(true), Attestation: &writ.Attestation{By: "agent", Note: "cancel path covered by spec"}},
+			{ID: "state-transition", Text: "b", Met: boolPtr(true), Attestation: &writ.Attestation{By: "agent", Note: "asserted in model spec"}},
+			{ID: "confirmed-by-you", Text: "c", Met: boolPtr(true), Attestation: &writ.Attestation{By: "human", Note: "checked by hand"}},
+			{ID: "no-regression", Text: "d"},
+		},
+		Verify: writ.VerifySpec{Command: "go test ./..."},
+	}
+	d := &drift.Report{InScope: []drift.FileChange{{Path: "a.go", Added: 1}}}
+	e := &evidence.Report{Ran: true, Passed: true, Command: "go test ./...", Summary: "ok"}
+	dec := gate.Decide(w, d, e)
+
+	got := Status(w, d, e, dec)
+
+	want := "" +
+		"  writ    add cancel action to AI calls\n" +
+		"\n" +
+		"  CONTRACT     3/4 criteria\n" +
+		"                 cancels-queued     claimed by agent   \"cancel path covered by spec\"\n" +
+		"                 state-transition   claimed by agent   \"asserted in model spec\"\n" +
+		"                 confirmed-by-you   confirmed by you\n" +
+		"                 no-regression      not assessed\n" +
+		"  EVIDENCE     ok\n" +
+		"  IN SCOPE     1 files\n" +
+		"  DRIFT        none\n" +
+		"\n" +
+		"  Needs you: criterion \"no-regression\" not yet assessed.\n"
+
+	if got != want {
+		t.Errorf("Status mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
 

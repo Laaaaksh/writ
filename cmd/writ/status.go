@@ -35,7 +35,7 @@ func runStatus(cmd *cobra.Command) error {
 
 	w, dec, d, e, err := evaluate(repoDir)
 	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ open <intent>` to start one")
+		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
 		return exitCodeErr{code: 2}
 	}
 	if err != nil {

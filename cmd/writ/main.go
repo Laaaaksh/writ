@@ -40,7 +40,10 @@ func newRootCmd() *cobra.Command {
 	}
 
 	root.AddCommand(newVersionCmd())
-	root.AddCommand(newOpenCmd())
+	root.AddCommand(newProposeCmd())
+	root.AddCommand(newApproveCmd())
+	root.AddCommand(newAttestCmd())
+	root.AddCommand(newUnattestCmd())
 	root.AddCommand(newStatusCmd())
 	root.AddCommand(newMergeCmd())
 

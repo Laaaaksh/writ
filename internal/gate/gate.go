@@ -44,12 +44,20 @@ func Decide(w *writ.Writ, d *drift.Report, e *evidence.Report) Decision {
 		reasons = append(reasons, fmt.Sprintf("verification failed: %s", e.Command))
 	}
 
+	if w.Approved == nil {
+		reasons = append(reasons, "writ has not been approved")
+	}
+
 	for _, c := range w.Criteria {
 		switch {
 		case c.Met == nil:
 			reasons = append(reasons, fmt.Sprintf("criterion %q not yet assessed", c.ID))
 		case !*c.Met:
 			reasons = append(reasons, fmt.Sprintf("criterion %q not met", c.ID))
+		case c.Attestation == nil:
+			// Agent-attested criteria DO count as met for auto-merge; the
+			// attestation itself, not who made it, is what's required here.
+			reasons = append(reasons, fmt.Sprintf("criterion %q not attested", c.ID))
 		}
 	}
 
