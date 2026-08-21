@@ -329,3 +329,65 @@ func TestValidateReportsAllProblems(t *testing.T) {
 		}
 	}
 }
+
+// proposalWrit is a clean draft: every criterion unassessed, as intake
+// requires before any human has agreed to the contract.
+func proposalWrit() *Writ {
+	w := validWrit()
+	for i := range w.Criteria {
+		w.Criteria[i].Met = nil
+		w.Criteria[i].Attestation = nil
+	}
+	return w
+}
+
+func TestValidateProposalCleanDraft(t *testing.T) {
+	if err := proposalWrit().ValidateProposal(); err != nil {
+		t.Fatalf("ValidateProposal on a clean draft: %v", err)
+	}
+	if err := proposalWrit().Validate(); err != nil {
+		t.Fatalf("Validate on a clean draft: %v", err)
+	}
+}
+
+func TestValidateProposalRefusesValidWritCarryingMet(t *testing.T) {
+	// validWrit ships Criteria[0].Met = true without an attestation: legal
+	// mid-flight state after attest/unattest churn, but a proposal must
+	// arrive entirely unassessed.
+	if err := validWrit().ValidateProposal(); err == nil {
+		t.Fatal("ValidateProposal: expected refusal of a draft carrying met, got nil")
+	}
+}
+
+func TestValidateProposalNamesPreAssessedCriteria(t *testing.T) {
+	w := proposalWrit()
+	met := true
+	w.Criteria[0].Met = &met
+	w.Criteria[1].Attestation = &Attestation{By: "human", Note: "self-blessed"}
+
+	err := w.ValidateProposal()
+	if err == nil {
+		t.Fatal("ValidateProposal: expected an error for pre-assessed criteria, got nil")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`criterion "c1" arrives already assessed`,
+		`criterion "c2" arrives already assessed`,
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error missing %q: %s", want, msg)
+		}
+	}
+}
+
+func TestValidateStillAcceptsApprovedAndAttested(t *testing.T) {
+	// Only intake runs ValidateProposal, so the full lifecycle state must
+	// fail there (it carries assessments) and stay valid under plain
+	// Validate.
+	if err := approvedWrit().ValidateProposal(); err == nil {
+		t.Error("ValidateProposal on an approved, attested writ: expected an error, got nil")
+	}
+	if err := approvedWrit().Validate(); err != nil {
+		t.Fatalf("Validate on an approved, attested writ: %v", err)
+	}
+}

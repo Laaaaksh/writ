@@ -244,3 +244,81 @@ func TestRunApproveViaEditorBrokenTOML(t *testing.T) {
 		t.Error("the broken file should still be on disk (unparseable), not deleted")
 	}
 }
+
+// TestRunApproveRefusesPreAssessedCriteria locks in the intake rule on the
+// approve side: a still-unapproved writ whose criteria already carry met or
+// an attestation (smuggled in via the draft or a hand edit) is refused by
+// approve --yes, stays unapproved on disk, and recovers through `writ
+// unattest` followed by approval.
+func TestRunApproveRefusesPreAssessedCriteria(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+	proposeValidWrit(t)
+
+	w, err := writ.Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	met := true
+	w.Criteria[0].Met = &met
+	w.Criteria[0].Attestation = &writ.Attestation{By: "agent", Note: "self-blessed"}
+	if err := w.Save(dir); err != nil {
+		t.Fatalf("save tampered state: %v", err)
+	}
+
+	cmd := newApproveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	if err := cmd.Flags().Set("yes", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.RunE(cmd, nil); err == nil {
+		t.Fatal("approve --yes: expected refusal of pre-assessed criteria, got nil")
+	}
+	if !strings.Contains(errOut.String(), `criterion "c1" arrives already assessed`) {
+		t.Errorf("refusal should name the offending criterion, got stderr: %s", errOut.String())
+	}
+	if strings.Contains(out.String(), "writ approved") {
+		t.Errorf("refused writ must not be approved, output: %s", out.String())
+	}
+
+	still, err := writ.Load(dir)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if still.Approved != nil {
+		t.Error("refused writ must remain unapproved")
+	}
+	if still.Criteria[0].Attestation == nil {
+		t.Error("state must be left in place for the user to clean up")
+	}
+
+	unattest := newUnattestCmd()
+	unattest.SetOut(&bytes.Buffer{})
+	unattest.SetErr(&bytes.Buffer{})
+	if err := unattest.RunE(unattest, []string{"c1"}); err != nil {
+		t.Fatalf("unattest c1: %v", err)
+	}
+
+	after := newApproveCmd()
+	after.SetOut(&bytes.Buffer{})
+	after.SetErr(&bytes.Buffer{})
+	if err := after.Flags().Set("yes", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if err := after.RunE(after, nil); err != nil {
+		t.Fatalf("approve --yes after clearing the smuggled claim: %v", err)
+	}
+
+	final, err := writ.Load(dir)
+	if err != nil {
+		t.Fatalf("final load: %v", err)
+	}
+	if final.Approved == nil {
+		t.Error("writ should be approved after cleanup")
+	}
+	if final.Criteria[0].Met != nil || final.Criteria[0].Attestation != nil {
+		t.Errorf("criterion c1 should carry no assessment, got %+v", final.Criteria[0])
+	}
+}

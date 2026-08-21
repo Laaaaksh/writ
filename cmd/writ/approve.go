@@ -58,7 +58,10 @@ func runApprove(cmd *cobra.Command, yes bool) error {
 		}
 	}
 
-	if err := w.Validate(); err != nil {
+	// ValidateProposal, not Validate: at approval time no criterion may
+	// carry an assessment either - claims are recorded via `writ attest`
+	// only after this step succeeds.
+	if err := w.ValidateProposal(); err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), err)
 		fmt.Fprintf(cmd.ErrOrStderr(), "\nfix the errors above and edit %s directly, then try again\n", path)
 		return errSilent

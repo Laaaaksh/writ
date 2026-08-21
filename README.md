@@ -49,9 +49,10 @@ EOF
 ```
 
 `--file <path>` reads the writ from a file instead of stdin. writ validates it and writes it
-to `.writ/current.toml`, unapproved. Drafting a concrete proposal - not hand-authoring path
-globs from a blank file - is the agent's job, because a lazy scope like `app/**` makes drift
-meaningless.
+to `.writ/current.toml`, unapproved. Criteria must arrive unassessed: a draft carrying `met`
+or an `attestation` is refused, because claims are recorded with `writ attest` only after a
+human approves. Drafting a concrete proposal - not hand-authoring path globs from a blank
+file - is the agent's job, because a lazy scope like `app/**` makes drift meaningless.
 
 **2. `writ approve`** - a human reviews the proposal, opening it in `$EDITOR` to tighten scope
 or criteria before agreeing to them. On save and exit, writ re-validates; if invalid, it

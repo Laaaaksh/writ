@@ -227,3 +227,53 @@ func TestStdinIsInteractive(t *testing.T) {
 		})
 	}
 }
+
+// TestRunProposeRefusesPreAssessedDraft locks in the intake rule that a
+// proposal cannot arrive with criteria already marked met or attested:
+// claims are recorded via `writ attest` only after a human approves.
+func TestRunProposeRefusesPreAssessedDraft(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	cmd := newProposeCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader(`
+id = "w1"
+intent = "do the thing"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["internal/foo/**"]
+
+[[criteria]]
+id = "c1"
+text = "the thing works"
+met = true
+
+[criteria.attestation]
+by = "agent"
+note = "self-blessed"
+
+[[criteria]]
+id = "c2"
+text = "tests pass"
+
+[verify]
+command = "go test ./..."
+`))
+
+	if err := cmd.RunE(cmd, nil); err == nil {
+		t.Fatal("runPropose: expected refusal of a pre-assessed draft, got nil")
+	}
+	if !strings.Contains(errOut.String(), `criterion "c1" arrives already assessed`) {
+		t.Errorf("refusal should name the offending criterion, got stderr: %s", errOut.String())
+	}
+	if strings.Contains(errOut.String(), `criterion "c2"`) {
+		t.Errorf("clean criterion c2 must not be flagged, got stderr: %s", errOut.String())
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, ".writ", "current.toml")); !os.IsNotExist(err) {
+		t.Errorf("refused proposal must not create state, stat err %v", err)
+	}
+}

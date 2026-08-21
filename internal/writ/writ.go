@@ -126,6 +126,21 @@ func (w *Writ) Save(repoDir string) error {
 
 // Validate returns a non-nil error describing every problem with this writ.
 func (w *Writ) Validate() error {
+	return w.validate(false)
+}
+
+// ValidateProposal returns a non-nil error describing every problem with w
+// as a proposed contract. It applies all of Validate's rules plus one more:
+// no criterion may arrive already assessed. An attestation is a claim made
+// after a human has agreed to the contract - `writ attest` refuses unapproved
+// writs for exactly that reason - so criteria carrying met/attestation in a
+// draft would let an author bless their own work before anyone signed off,
+// including through `approve --yes`, which approves as-is without review.
+func (w *Writ) ValidateProposal() error {
+	return w.validate(true)
+}
+
+func (w *Writ) validate(proposal bool) error {
 	var problems []string
 
 	if strings.TrimSpace(w.ID) == "" {
@@ -149,6 +164,13 @@ func (w *Writ) Validate() error {
 
 	if len(w.Criteria) < 1 {
 		problems = append(problems, "at least one criterion is required")
+	}
+	if proposal {
+		for _, c := range w.Criteria {
+			if c.Met != nil || c.Attestation != nil {
+				problems = append(problems, fmt.Sprintf("criterion %q arrives already assessed; proposals carry unmet, unattested criteria only - record claims with `writ attest` after approval", c.ID))
+			}
+		}
 	}
 	seen := make(map[string]bool, len(w.Criteria))
 	for i, c := range w.Criteria {

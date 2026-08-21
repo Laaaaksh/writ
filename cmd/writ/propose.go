@@ -68,7 +68,7 @@ func runPropose(cmd *cobra.Command, file string) error {
 	// A proposal is never pre-approved, regardless of what the input carried.
 	w.Approved = nil
 
-	if err := w.Validate(); err != nil {
+	if err := w.ValidateProposal(); err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), err)
 		return errSilent
 	}
