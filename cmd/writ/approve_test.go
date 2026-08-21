@@ -322,3 +322,42 @@ func TestRunApproveRefusesPreAssessedCriteria(t *testing.T) {
 		t.Errorf("criterion c1 should carry no assessment, got %+v", final.Criteria[0])
 	}
 }
+
+// A save that renames a key - here [verify] becoming [verrify] - used to
+// surface only as downstream "verify.command must not be empty"; approve's
+// editor round-trip reloads strictly, so the actual typo is named while the
+// edited file stays on disk for fixing.
+func TestRunApproveViaEditorUnknownKey(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+	proposeValidWrit(t)
+
+	editorScript(t, `sed 's/^\[verify\]$/[verrify]/' "$1" > "$1.tmp" && mv "$1.tmp" "$1"`)
+
+	cmd := newApproveCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	err := cmd.RunE(cmd, nil)
+	if err == nil || errors.Is(err, errSilent) {
+		t.Fatalf("approve after renaming [verify]: got err %v, want a plain naming error", err)
+	}
+	resolved, symErr := filepath.EvalSymlinks(dir)
+	if symErr != nil {
+		t.Fatal(symErr)
+	}
+	for _, want := range []string{filepath.Join(resolved, ".writ", "current.toml"), `"verrify"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %v, want it to contain %q", err, want)
+		}
+	}
+
+	w, loadErr := writ.Load(dir)
+	if loadErr != nil {
+		t.Fatalf("reload: %v", loadErr)
+	}
+	if w.Approved != nil {
+		t.Error("a failed approval must not stamp approval onto the writ")
+	}
+}

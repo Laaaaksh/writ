@@ -2,6 +2,8 @@ package writ
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -389,5 +391,89 @@ func TestValidateStillAcceptsApprovedAndAttested(t *testing.T) {
 	}
 	if err := approvedWrit().Validate(); err != nil {
 		t.Fatalf("Validate on an approved, attested writ: %v", err)
+	}
+}
+
+func TestParseRefusesUnknownKeys(t *testing.T) {
+	// Parse guards author-written input, so a typo such as "titel" or a
+	// mistyped key inside a criterion must be named outright instead of
+	// being silently dropped and resurfacing as "X must not be empty".
+	doc := `
+titel = "retry webhook"
+intent = "add a retry"
+base = "main"
+created = 2026-01-01T00:00:00Z
+scope = ["internal/webhook/**"]
+
+[[criteria]]
+id = "c1"
+txt = "a 5xx response is retried"
+
+[verify]
+command = "go test ./..."
+`
+
+	w, err := Parse([]byte(doc))
+	if err == nil {
+		t.Fatalf("Parse accepted unknown keys, got %+v", w)
+	}
+	for _, want := range []string{`"titel"`, `"criteria.txt"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %v, want it to name %s", err, want)
+		}
+	}
+}
+
+func TestParseAcceptsEveryWritableField(t *testing.T) {
+	// Whatever Save can write must parse back without an unknown-key
+	// refusal, including the omitempty fields (met, attestation, approved):
+	// otherwise approve's strict editor round-trip would reject writ's own
+	// state.
+	dir := t.TempDir()
+	if err := approvedWrit().Save(dir); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, Dir, "current.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse refused a document Save wrote: %v", err)
+	}
+	if got.Approved == nil || got.Criteria[0].Attestation == nil || got.Criteria[1].Met == nil {
+		t.Errorf("omitempty fields must survive the round trip, got %+v", got)
+	}
+}
+
+func TestLoadToleratesUnknownKeys(t *testing.T) {
+	// The deliberate asymmetry with Parse: current.toml is written by
+	// Save, so unknown keys there can only mean version skew or a hand
+	// edit; Load must keep the mapped fields usable rather than strand the
+	// open writ behind them.
+	dir := t.TempDir()
+	if err := validWrit().Save(dir); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	path := filepath.Join(dir, Dir, "current.toml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withExtra := strings.Replace(string(data), "[verify]", "priority = 3\n\n[verify]", 1)
+	if withExtra == string(data) {
+		t.Fatal("[verify] table header not found in saved output")
+	}
+	if err := os.WriteFile(path, []byte(withExtra), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load refused an unknown key: %v", err)
+	}
+	if got.ID != "w1" || got.Verify.Command != "go test ./..." {
+		t.Errorf("Load lost mapped fields over an unknown key: %+v", got)
 	}
 }

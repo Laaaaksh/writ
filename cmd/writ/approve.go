@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -49,7 +50,14 @@ func runApprove(cmd *cobra.Command, yes bool) error {
 			return err
 		}
 
-		w, err = writ.Load(repoDir)
+		// Parse, not Load: what the editor saved is human-authored input,
+		// so a typo'd key must be named here rather than silently dropped
+		// and resurfacing as an empty-field validation problem.
+		edited, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return fmt.Errorf("reloading %s: %w", path, readErr)
+		}
+		w, err = writ.Parse(edited)
 		if err != nil {
 			return fmt.Errorf("reloading %s: %w", path, err)
 		}

@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 
 	"github.com/Laaaaksh/writ/internal/writ"
@@ -61,8 +60,11 @@ func runPropose(cmd *cobra.Command, file string) error {
 		}
 	}
 
-	var w writ.Writ
-	if err := toml.Unmarshal(data, &w); err != nil {
+	// Parse, not a lenient decode: the draft is authored outside writ, so
+	// a typo'd key must be named here rather than silently dropped and
+	// resurfacing as an empty-field validation problem.
+	w, err := writ.Parse(data)
+	if err != nil {
 		return fmt.Errorf("parsing writ: %w", err)
 	}
 	// A proposal is never pre-approved, regardless of what the input carried.

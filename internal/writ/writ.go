@@ -3,6 +3,7 @@
 package writ
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -87,6 +88,12 @@ type VerifySpec struct {
 
 // Load reads .writ/current.toml relative to repoDir.
 // Returns ErrNoWrit if the file does not exist.
+//
+// Unlike Parse, Load tolerates keys that name no Writ field: this file is
+// written by Save, so unknown keys can only mean another writ version's or a
+// hand-edited state, and refusing them would strand an open writ behind mere
+// version skew instead of letting the decision-time validators judge the
+// fields that do map.
 func Load(repoDir string) (*Writ, error) {
 	path := filepath.Join(repoDir, writPath)
 	data, err := os.ReadFile(path)
@@ -100,6 +107,27 @@ func Load(repoDir string) (*Writ, error) {
 	var w Writ
 	if err := toml.Unmarshal(data, &w); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return &w, nil
+}
+
+// Parse decodes a writ from TOML data authored outside writ - a piped stdin
+// draft, a --file proposal, or $EDITOR output - rather than written by Save.
+// Beyond TOML syntax it refuses keys that name no Writ field: a lenient
+// decode would silently drop them and resurface later as misleading "X must
+// not be empty" validation problems instead of naming what was mistyped.
+func Parse(data []byte) (*Writ, error) {
+	var w Writ
+	md, err := toml.NewDecoder(bytes.NewReader(data)).Decode(&w)
+	if err != nil {
+		return nil, err
+	}
+	if undecoded := md.Undecoded(); len(undecoded) > 0 {
+		names := make([]string, len(undecoded))
+		for i, k := range undecoded {
+			names[i] = fmt.Sprintf("%q", k.String())
+		}
+		return nil, fmt.Errorf("unknown key(s) %s", strings.Join(names, ", "))
 	}
 	return &w, nil
 }

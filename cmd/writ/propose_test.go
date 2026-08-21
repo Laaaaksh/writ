@@ -277,3 +277,35 @@ command = "go test ./..."
 		t.Errorf("refused proposal must not create state, stat err %v", err)
 	}
 }
+
+// A typo'd key such as "titel" must be named outright: the old lenient
+// decode silently dropped it, so the draft failed validation later with the
+// misleading "id must not be empty".
+func TestRunProposeNamesUnknownKeys(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	draft := strings.Replace(validWritTOML, `id = "w1"`, `titel = "w1"`, 1)
+
+	cmd := newProposeCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetIn(strings.NewReader(draft))
+
+	err := cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected propose to refuse a draft with a typo'd key")
+	}
+	for _, want := range []string{"parsing writ", `"titel"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %v, want it to contain %s", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "must not be empty") {
+		t.Errorf("error = %v; the typo must be named, not surfaced as an empty field", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".writ", "current.toml")); !os.IsNotExist(statErr) {
+		t.Errorf("refused proposal must not create state (stat error: %v)", statErr)
+	}
+}
