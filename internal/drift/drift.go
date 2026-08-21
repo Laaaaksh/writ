@@ -50,6 +50,18 @@ func Compute(w *writ.Writ, repoDir string) (*Report, error) {
 	// while behaving identically to HEAD (everything is new) in that state.
 	worktreeRev := emptyTreeHash
 	if headExists(repoDir) {
+		// The base must resolve before any diff runs against it. A base that
+		// names nothing (a typo at propose time, or a branch deleted after
+		// approval) would otherwise surface as raw git plumbing output, and a
+		// blanked one is worse: git treats an empty left side of "base...HEAD"
+		// as empty diff output rather than an error, so every committed change
+		// would silently vanish from the report and the writ could pass as
+		// zero-drift. Like the whole-repo scope and empty-criteria refusals,
+		// this defends parseable-but-invalid state reachable by editing
+		// .writ/current.toml after approval.
+		if !revExists(repoDir, w.Base) {
+			return nil, fmt.Errorf("writ names base %q, which does not exist in this repo; run `writ discard` and propose again with the correct base", w.Base)
+		}
 		if err := addNumstat(changes, repoDir, w.Base+"...HEAD"); err != nil {
 			return nil, fmt.Errorf("diffing against base %q: %w", w.Base, err)
 		}
@@ -111,6 +123,17 @@ func runGit(repoDir string, args ...string) ([]byte, error) {
 // the diff that follows fails loudly on a real problem anyway.
 func headExists(repoDir string) bool {
 	cmd := exec.Command("git", "-C", repoDir, "rev-parse", "--verify", "-q", "HEAD")
+	return cmd.Run() == nil
+}
+
+// revExists reports whether rev resolves to a commit in repoDir. Git ref
+// names cannot contain whitespace, so a blank or whitespace-only base is
+// refused here without consulting git at all.
+func revExists(repoDir, rev string) bool {
+	if strings.TrimSpace(rev) == "" {
+		return false
+	}
+	cmd := exec.Command("git", "-C", repoDir, "rev-parse", "--verify", "-q", rev+"^{commit}")
 	return cmd.Run() == nil
 }
 

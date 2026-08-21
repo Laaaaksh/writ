@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -283,5 +284,100 @@ command = "true"
 	}
 	if _, statErr := os.Stat(statePath); statErr != nil {
 		t.Errorf("a refused merge must leave the state file in place: %v", statErr)
+	}
+}
+
+// TestDecideRefusesUnresolvableBase locks the base axis of the vacuous-drift
+// defense into CI: intake accepts any non-empty base because a zero-commit
+// repo has no branches yet, so a typo at propose time - or a blanked base
+// after approval, against which git reports an empty diff instead of an
+// error - reaches decide() as parseable-but-valid state. drift.Compute must
+// refuse it loudly, and neither status nor merge --approve may render a
+// verdict or touch branches on such a writ.
+func TestDecideRefusesUnresolvableBase(t *testing.T) {
+	for _, tampered := range []string{"ghost", "", "   "} {
+		t.Run(fmt.Sprintf("base=%q", tampered), func(t *testing.T) {
+			dir := newTestRepo(t)
+			withDir(t, dir)
+
+			proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+			approveYes(t)
+			attestCriterion(t, "c1")
+
+			// Simulate post-approval tampering: swap the saved writ's base
+			// line, leaving approval and attestation exactly as written.
+			statePath := filepath.Join(dir, ".writ", "current.toml")
+			data, err := os.ReadFile(statePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lines := strings.Split(string(data), "\n")
+			found := false
+			for i, line := range lines {
+				if strings.HasPrefix(line, "base =") {
+					lines[i] = fmt.Sprintf("base = %q", tampered)
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("no base line found in saved state: %s", data)
+			}
+			if err := os.WriteFile(statePath, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			runStatusCmd := newStatusCmd()
+			var out, _ bytes.Buffer
+			runStatusCmd.SetOut(&out)
+			err = runStatusCmd.RunE(runStatusCmd, nil)
+			if err == nil {
+				t.Fatal("status over an unresolvable-base writ: expected an error")
+			}
+			if ec, ok := err.(exitCodeErr); ok && ec.code == 2 {
+				t.Errorf("status error = %v, want a plain error, not no-writ-open", err)
+			}
+			if !strings.Contains(err.Error(), "does not exist") || !strings.Contains(err.Error(), "discard") {
+				t.Errorf("status error = %v, want it to name the missing base and point at discard", err)
+			}
+			if strings.Contains(out.String(), "Auto-mergeable") {
+				t.Errorf("status output %q must not render an auto-mergeable verdict", out.String())
+			}
+
+			mergeCmd := newMergeCmd()
+			if err := mergeCmd.Flags().Set("approve", "true"); err != nil {
+				t.Fatal(err)
+			}
+			var outM, _ bytes.Buffer
+			mergeCmd.SetOut(&outM)
+			err = mergeCmd.RunE(mergeCmd, nil)
+			if err == nil {
+				t.Fatal("merge --approve over an unresolvable-base writ: expected a refusal")
+			}
+			if !strings.Contains(err.Error(), "does not exist") {
+				t.Errorf("merge --approve error = %v, want it to name the missing base", err)
+			}
+			if strings.Contains(outM.String(), "merged into") {
+				t.Errorf("merge --approve output %q must not report a merge", outM.String())
+			}
+			if branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current")); branch == "base" {
+				t.Error("a refused merge must not check out base")
+			}
+			if _, statErr := os.Stat(statePath); statErr != nil {
+				t.Errorf("a refused merge must leave the state file in place: %v", statErr)
+			}
+		})
 	}
 }

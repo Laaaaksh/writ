@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Laaaaksh/writ/internal/writ"
@@ -340,5 +341,35 @@ func TestCompute_NonExistentBaseReturnsError(t *testing.T) {
 	}
 	if report != nil {
 		t.Errorf("expected nil report on error, got %+v", report)
+	}
+	if !strings.Contains(err.Error(), `"does-not-exist"`) || !strings.Contains(err.Error(), "discard") {
+		t.Errorf("error = %v, want it to name the base and point at `writ discard`", err)
+	}
+	if strings.Contains(err.Error(), "ambiguous argument") {
+		t.Errorf("error = %v, want a clean message, not raw git plumbing output", err)
+	}
+}
+
+// TestCompute_EmptyBaseRefused locks the base axis of the vacuous-drift
+// defense: git treats an empty left side of "base...HEAD" as an empty diff
+// rather than an error, so a writ whose saved base was blanked after
+// approval would lose every committed change from the report and could pass
+// as zero-drift. Compute must refuse instead of computing against nothing.
+func TestCompute_EmptyBaseRefused(t *testing.T) {
+	dir := newTestRepo(t)
+	writeFile(t, dir, "stray.txt", "unreviewed\n")
+	git(t, dir, "add", "stray.txt")
+	git(t, dir, "commit", "-q", "-m", "out of scope")
+
+	for _, base := range []string{"", "   "} {
+		w := testWrit("app/**")
+		w.Base = base
+		report, err := Compute(w, dir)
+		if err == nil {
+			t.Fatalf("base %q: expected refusal, got report %+v", base, report)
+		}
+		if !strings.Contains(err.Error(), "does not exist") || !strings.Contains(err.Error(), "discard") {
+			t.Errorf("base %q: error = %v, want it to name the missing base and point at discard", base, err)
+		}
 	}
 }
