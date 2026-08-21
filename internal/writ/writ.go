@@ -142,7 +142,13 @@ func (w *Writ) Validate() error {
 		problems = append(problems, "at least one criterion is required")
 	}
 	seen := make(map[string]bool, len(w.Criteria))
-	for _, c := range w.Criteria {
+	for i, c := range w.Criteria {
+		if strings.TrimSpace(c.ID) == "" {
+			problems = append(problems, fmt.Sprintf("criterion %d: id must not be empty", i+1))
+		}
+		if strings.TrimSpace(c.Text) == "" {
+			problems = append(problems, fmt.Sprintf("criterion %q: text must not be empty", c.ID))
+		}
 		if seen[c.ID] {
 			problems = append(problems, fmt.Sprintf("duplicate criterion id %q", c.ID))
 		}

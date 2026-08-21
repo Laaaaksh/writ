@@ -199,6 +199,33 @@ func TestValidateRejections(t *testing.T) {
 			},
 		},
 		{
+			name: "criterion with empty id",
+			mutate: func(w *Writ) {
+				w.Criteria = []Criterion{
+					{ID: "", Text: "a"},
+					{ID: "c2", Text: "b"},
+				}
+			},
+		},
+		{
+			name: "criterion with whitespace-only id",
+			mutate: func(w *Writ) {
+				w.Criteria[0].ID = "   "
+			},
+		},
+		{
+			name: "criterion with empty text",
+			mutate: func(w *Writ) {
+				w.Criteria[0].Text = ""
+			},
+		},
+		{
+			name: "criterion with whitespace-only text",
+			mutate: func(w *Writ) {
+				w.Criteria[0].Text = "  \t "
+			},
+		},
+		{
 			name:   "empty verify command",
 			mutate: func(w *Writ) { w.Verify.Command = "" },
 		},
@@ -240,6 +267,25 @@ func TestValidateRejections(t *testing.T) {
 func TestValidateApprovedAndAttestedIsValid(t *testing.T) {
 	if err := approvedWrit().Validate(); err != nil {
 		t.Fatalf("Validate on an approved, attested writ: %v", err)
+	}
+}
+
+func TestValidateNamesEmptyCriterionIdAndText(t *testing.T) {
+	w := validWrit()
+	w.Criteria = []Criterion{{ID: "  ", Text: ""}}
+
+	err := w.Validate()
+	if err == nil {
+		t.Fatal("Validate: expected an error for a criterion with no id and no text")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`criterion 1: id must not be empty`,
+		`criterion "  ": text must not be empty`,
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("Validate error missing %q: %s", want, msg)
+		}
 	}
 }
 
