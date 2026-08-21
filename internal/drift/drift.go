@@ -56,6 +56,9 @@ func Compute(w *writ.Writ, repoDir string) (*Report, error) {
 
 	paths := make([]string, 0, len(changes))
 	for p := range changes {
+		if isWritOwned(p) {
+			continue
+		}
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
@@ -222,6 +225,15 @@ func countLines(path string) (int, error) {
 		lines++
 	}
 	return lines, nil
+}
+
+// isWritOwned reports whether path falls under writ's own bookkeeping
+// directory (writ.Dir), which is excluded from both InScope and Drift
+// entirely rather than classified into either. A plain prefix match on the
+// string would also catch unrelated paths like ".writings/notes.md" or
+// ".writ-backup", so this checks the directory component exactly.
+func isWritOwned(path string) bool {
+	return path == writ.Dir || strings.HasPrefix(path, writ.Dir+"/")
 }
 
 // matchesScope reports whether path matches any of the compiled scope globs.
