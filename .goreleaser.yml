@@ -41,6 +41,7 @@ release:
 
 brews:
   - name: writ
+    directory: Formula
     repository:
       owner: Laaaaksh
       name: homebrew-writ
