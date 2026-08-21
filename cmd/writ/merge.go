@@ -118,12 +118,35 @@ func gitMerge(repoDir, base string) error {
 	return nil
 }
 
+// isDirty reports whether the working tree holds changes a merge must not
+// disturb. Writ's own runtime state under writ.Dir never counts:
+// propose/approve/attest leave .writ/current.toml untracked or modified by
+// design, and that bookkeeping would otherwise block every merge on the
+// documented happy path unless the user happens to gitignore it.
 func isDirty(repoDir string) (bool, error) {
-	out, err := runGitOutput(repoDir, "status", "--porcelain")
+	out, err := runGitOutput(repoDir, "status", "--porcelain", "-z")
 	if err != nil {
 		return false, err
 	}
-	return strings.TrimSpace(out) != "", nil
+	for _, tok := range strings.Split(out, "\x00") {
+		if tok == "" || isWritStateEntry(tok) {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+// isWritStateEntry reports whether one porcelain -z token refers to a path
+// under writ's own state directory. Entry tokens are "XY PATH"; for renames
+// the old path follows as a separate bare token, which this conservatively
+// counts as user work.
+func isWritStateEntry(tok string) bool {
+	if len(tok) < 4 || tok[2] != ' ' {
+		return false
+	}
+	path := tok[3:]
+	return path == writ.Dir || strings.HasPrefix(path, writ.Dir+"/")
 }
 
 func currentBranch(repoDir string) (string, error) {

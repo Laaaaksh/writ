@@ -97,6 +97,37 @@ func TestGitMergeRefusesOnDirtyTree(t *testing.T) {
 	}
 }
 
+// TestGitMergeIgnoresWritState proves the documented happy path works: writ
+// leaves .writ/current.toml behind as untracked or modified bookkeeping, and
+// that alone must not make the tree dirty enough to refuse a merge.
+func TestGitMergeIgnoresWritState(t *testing.T) {
+	dir := newTestRepo(t)
+
+	stateDir := filepath.Join(dir, ".writ")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, "current.toml"), []byte("id = \"w1\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dirty, err := isDirty(dir)
+	if err != nil {
+		t.Fatalf("isDirty: %v", err)
+	}
+	if dirty {
+		t.Error("isDirty = true with only .writ/current.toml present, want false")
+	}
+
+	if err := gitMerge(dir, "base"); err != nil {
+		t.Fatalf("gitMerge with only writ state in the tree: %v", err)
+	}
+	branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if branch != "base" {
+		t.Errorf("expected to end up on base, got %q", branch)
+	}
+}
+
 func TestGitMergeSuccessCleanMerge(t *testing.T) {
 	dir := newTestRepo(t)
 
