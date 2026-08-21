@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 func TestRunStatusNoWritOpen(t *testing.T) {
@@ -74,6 +76,61 @@ command = "true"
 
 	if err := newCmd().RunE(newCmd(), nil); err != nil {
 		t.Fatalf("status after attesting: %v, want nil (exit 0)", err)
+	}
+}
+
+// TestRunStatusUnapprovedWritNeedsHuman covers the README loop's state
+// between steps 1 and 2: right after propose the writ exists but nobody has
+// agreed to it, so status must exit 1 naming the missing approval - while
+// still computing and rendering drift and evidence so the human reviewing
+// the proposal sees what they are being asked to approve.
+func TestRunStatusUnapprovedWritNeedsHuman(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+
+	cmd := newStatusCmd()
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+
+	err := cmd.RunE(cmd, nil)
+
+	ec, ok := err.(exitCodeErr)
+	if !ok || ec.code != 1 {
+		t.Fatalf("status on an unapproved writ: err = %v, want exitCodeErr{1}", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "writ has not been approved") {
+		t.Errorf("status output = %q, want the verdict to name the missing approval", got)
+	}
+	if !strings.Contains(got, "not assessed") {
+		t.Errorf("status output = %q, want unattested criteria shown as not assessed", got)
+	}
+	if strings.Contains(got, "Auto-mergeable") {
+		t.Errorf("status output = %q must not claim auto-mergeable before approval", got)
+	}
+
+	w, err := writ.Load(dir)
+	if err != nil {
+		t.Fatalf("reloading state after status: %v", err)
+	}
+	if w.Approved != nil {
+		t.Error("status must not mutate approval state")
 	}
 }
 

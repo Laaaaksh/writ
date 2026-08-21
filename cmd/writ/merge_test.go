@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/Laaaaksh/writ/internal/gate"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 func mustRunGit(t *testing.T, dir string, args ...string) string {
@@ -384,6 +385,79 @@ command = "false"
 	override := newCmd(true)
 	if err := override.RunE(override, nil); err != nil {
 		t.Fatalf("merge --approve: %v", err)
+	}
+
+	branch = strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if branch != "base" {
+		t.Errorf("expected merge --approve to land on base, got %q", branch)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, ".writ", "current.toml")); !os.IsNotExist(statErr) {
+		t.Errorf("expected .writ/current.toml cleared after merge --approve, got stat err %v", statErr)
+	}
+}
+
+// TestRunMergeUnapprovedWritRefusalThenApproveOverride covers the other
+// needs-human axis: a writ nobody has approved yet. Plain merge refuses with
+// exit 1 without touching branches or state, and merge --approve - whose
+// flag help promises to "record human approval and merge" - is the one way
+// through, landing on base and clearing the state file.
+func TestRunMergeUnapprovedWritRefusalThenApproveOverride(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+
+	newCmd := func(approve bool) *cobra.Command {
+		cmd := newMergeCmd()
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		if approve {
+			if err := cmd.Flags().Set("approve", "true"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return cmd
+	}
+
+	err := newCmd(false).RunE(newCmd(false), nil)
+	if ec, ok := err.(exitCodeErr); !ok || ec.code != 1 {
+		t.Fatalf("merge of an unapproved writ without --approve: err = %v, want exitCodeErr{1}", err)
+	}
+
+	branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
+	if branch != "feature" {
+		t.Errorf("a refused merge must not change branches, got %q", branch)
+	}
+	w, err := writ.Load(dir)
+	if err != nil {
+		t.Fatalf("a refused merge must keep the open writ: %v", err)
+	}
+	if w.Approved != nil {
+		t.Error("a refused merge must leave the writ unapproved")
+	}
+
+	override := newCmd(true)
+	var out bytes.Buffer
+	override.SetOut(&out)
+	if err := override.RunE(override, nil); err != nil {
+		t.Fatalf("merge --approve of an unapproved writ: %v", err)
+	}
+	if !strings.Contains(out.String(), "human approval recorded via --approve") {
+		t.Errorf("merge --approve output = %q, want it to record the human approval", out.String())
 	}
 
 	branch = strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current"))
