@@ -120,6 +120,47 @@ func TestRunAttestAndUnattest(t *testing.T) {
 	}
 }
 
+// TestRunAttestAndUnattestNoWritOpen locks in the documented exit-code
+// contract for the two commands the README's Exit codes section most easily
+// leaves out: like status/merge/discard/approve, attest and unattest signal
+// "no writ is open" with exit code 2 and a message naming propose, not a
+// generic exit-1 error.
+func TestRunAttestAndUnattestNoWritOpen(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	acmd := newAttestCmd()
+	var aErr bytes.Buffer
+	acmd.SetOut(&bytes.Buffer{})
+	acmd.SetErr(&aErr)
+	if err := acmd.Flags().Set("note", "done"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := acmd.RunE(acmd, []string{"c1"})
+	ec, ok := err.(exitCodeErr)
+	if !ok || ec.code != 2 {
+		t.Fatalf("attest with no open writ: got err %v, want exitCodeErr{2}", err)
+	}
+	if !strings.Contains(aErr.String(), "no writ is open") {
+		t.Errorf("attest with no open writ: stderr = %q, want a helpful message", aErr.String())
+	}
+
+	ucmd := newUnattestCmd()
+	var uErr bytes.Buffer
+	ucmd.SetOut(&bytes.Buffer{})
+	ucmd.SetErr(&uErr)
+
+	err = ucmd.RunE(ucmd, []string{"c1"})
+	ec, ok = err.(exitCodeErr)
+	if !ok || ec.code != 2 {
+		t.Fatalf("unattest with no open writ: got err %v, want exitCodeErr{2}", err)
+	}
+	if !strings.Contains(uErr.String(), "no writ is open") {
+		t.Errorf("unattest with no open writ: stderr = %q, want a helpful message", uErr.String())
+	}
+}
+
 func TestRunAttestHumanFlag(t *testing.T) {
 	dir := setupApprovedWrit(t)
 
