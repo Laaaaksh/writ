@@ -72,6 +72,9 @@ criterion attested auto-merges with no human; anything else names the reasons a 
 needed. `merge` does the same and, if mergeable (or given `--approve`), merges the writ's
 branch into `base` and clears `.writ/current.toml`.
 
+When a proposal is rejected or abandoned, `writ discard` removes the open writ so `propose`
+can start fresh; it touches only `.writ/current.toml`, never branches or commits.
+
 ```
 $ writ status
 ```
