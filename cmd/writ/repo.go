@@ -12,14 +12,21 @@ import (
 // non-zero without cobra printing anything further.
 var errSilent = errors.New("")
 
-// repoRoot finds the root of the current git repository, falling back to the
-// current working directory if git is unavailable.
+// errNotInRepo is returned when the working directory is not inside a git
+// repository. writ's whole model - drift against a base branch, merging the
+// feature branch - is built on git, so there is no useful fallback: commands
+// fail loudly here rather than silently treating an ordinary directory as a
+// repo and scattering .writ/ state into it.
+var errNotInRepo = errors.New("not inside a git repository; writ tracks work per repo - cd into one or run `git init` first")
+
+// repoRoot finds the root of the git repository containing the working
+// directory.
 func repoRoot() (string, error) {
 	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
 	if err == nil {
 		return strings.TrimSpace(string(out)), nil
 	}
-	return os.Getwd()
+	return "", errNotInRepo
 }
 
 // openInEditor opens path in $EDITOR, falling back to $VISUAL, then vi.
