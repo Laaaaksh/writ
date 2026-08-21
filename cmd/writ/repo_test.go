@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -41,5 +43,33 @@ func TestRepoRootInsideRepo(t *testing.T) {
 	}
 	if got, _ := filepath.EvalSymlinks(root); got != want {
 		t.Errorf("repoRoot() = %q, want %q", got, want)
+	}
+}
+
+// TestOpenInEditorSupportsEditorWithArguments proves EDITOR values that
+// carry arguments (e.g. "code -w") launch correctly: the editor is run
+// through the shell the same way git runs GIT_EDITOR.
+func TestOpenInEditorSupportsEditorWithArguments(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args.txt")
+	script := filepath.Join(dir, "editor.sh")
+	body := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %q\n", argsFile)
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EDITOR", script+" -w")
+
+	target := filepath.Join(dir, "target.toml")
+	if err := openInEditor(target); err != nil {
+		t.Fatalf("openInEditor with arguments in EDITOR: %v", err)
+	}
+
+	got, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("editor script never ran: %v", err)
+	}
+	want := "-w\n" + target + "\n"
+	if string(got) != want {
+		t.Errorf("editor received args %q, want %q", got, want)
 	}
 }

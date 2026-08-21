@@ -30,6 +30,10 @@ func repoRoot() (string, error) {
 }
 
 // openInEditor opens path in $EDITOR, falling back to $VISUAL, then vi.
+// The editor value is launched through the shell exactly the way git
+// launches GIT_EDITOR: `<editor> "$@"`. A bare command name behaves
+// identically, while a value carrying arguments (EDITOR="code -w") works
+// instead of dying with a confusing fork/exec "file not found".
 func openInEditor(path string) error {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
@@ -39,7 +43,7 @@ func openInEditor(path string) error {
 		editor = "vi"
 	}
 
-	c := exec.Command(editor, path)
+	c := exec.Command("sh", "-c", editor+` "$@"`, editor, path)
 	c.Stdin = os.Stdin
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
