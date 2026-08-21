@@ -1,0 +1,54 @@
+version: 2
+
+project_name: writ
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: writ
+    main: ./cmd/writ
+    binary: writ
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - id: writ
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: Laaaaksh
+    name: writ
+  draft: false
+  prerelease: auto
+
+brews:
+  - name: writ
+    repository:
+      owner: Laaaaksh
+      name: homebrew-writ
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/Laaaaksh/writ"
+    description: "The agreed scope of a piece of work, approved before any code exists"
+    license: "MIT"
+    install: |
+      bin.install "writ"
+    test: |
+      system "#{bin}/writ", "version"

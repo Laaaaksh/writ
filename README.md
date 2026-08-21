@@ -17,6 +17,12 @@ refuses to accept one.
 ## Install
 
 ```
+brew install Laaaaksh/writ/writ
+```
+
+The binary has no runtime dependencies. Alternatively, with a Go toolchain:
+
+```
 go install github.com/Laaaaksh/writ/cmd/writ@latest
 ```
 
