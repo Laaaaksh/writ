@@ -36,6 +36,15 @@ var wholeRepoScopes = map[string]bool{
 	"./**": true,
 }
 
+// IsWholeRepoScope reports whether one scope entry covers the entire
+// repository, making drift detection meaningless. It is exported so the
+// refusal is enforced continuously - at intake (Validate) and again before
+// any status or merge decision loads the open writ - not just once at
+// propose time.
+func IsWholeRepoScope(entry string) bool {
+	return wholeRepoScopes[strings.TrimSpace(entry)]
+}
+
 // Writ is the agreed scope of a piece of work: an intent, a set of checkable
 // acceptance criteria, a declared file scope, and a verification command.
 type Writ struct {
@@ -133,7 +142,7 @@ func (w *Writ) Validate() error {
 		problems = append(problems, "scope must not be empty")
 	}
 	for _, s := range w.Scope {
-		if wholeRepoScopes[strings.TrimSpace(s)] {
+		if IsWholeRepoScope(s) {
 			problems = append(problems, fmt.Sprintf("scope entry %q covers the whole repo, which defeats drift detection", s))
 		}
 	}

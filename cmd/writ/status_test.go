@@ -133,3 +133,98 @@ func TestLoadOpenWritCorruptStateNamesDiscard(t *testing.T) {
 		})
 	}
 }
+
+// TestDecideRefusesWholeRepoScope locks the scope axis of the vacuous-drift
+// defense into CI: intake (propose/approve) already refuses a whole-repo
+// scope, so one on disk means the approved state file was edited or broken
+// afterwards - and drift against such a scope is vacuously zero, which would
+// let an arbitrary unreviewed change set report as auto-mergeable. status
+// must error loudly instead of rendering a green verdict, and merge must
+// refuse even with --approve, the strongest override it has.
+func TestDecideRefusesWholeRepoScope(t *testing.T) {
+	dir := newTestRepo(t)
+	withDir(t, dir)
+
+	proposeWritTOML(t, `
+id = "w1"
+intent = "add a feature"
+base = "base"
+created = 2026-01-01T00:00:00Z
+scope = ["feature.txt"]
+
+[[criteria]]
+id = "c1"
+text = "the feature works"
+
+[verify]
+command = "true"
+`)
+	approveYes(t)
+	attestCriterion(t, "c1")
+
+	// Simulate post-approval tampering: swap the saved writ's scope line for
+	// a whole-repo glob, leaving everything else (approval, attestation)
+	// exactly as the tool wrote it.
+	statePath := filepath.Join(dir, ".writ", "current.toml")
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(data), "\n")
+	tampered := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "scope =") {
+			lines[i] = `scope = ["**"]`
+			tampered = true
+		}
+	}
+	if !tampered {
+		t.Fatalf("no scope line found in saved state: %s", data)
+	}
+	if err := os.WriteFile(statePath, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(cmd *cobra.Command, args []string) (*bytes.Buffer, *bytes.Buffer, error) {
+		var out, errOut bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errOut)
+		return &out, &errOut, cmd.RunE(cmd, args)
+	}
+
+	statusCmd := newStatusCmd()
+	out, _, err := run(statusCmd, nil)
+	if err == nil {
+		t.Fatal("status over a whole-repo-scope writ: expected an error")
+	}
+	if ec, ok := err.(exitCodeErr); ok && ec.code == 2 {
+		t.Errorf("status error = %v, want a plain error (exit 1), not no-writ-open", err)
+	}
+	if !strings.Contains(err.Error(), "whole repo") || !strings.Contains(err.Error(), "discard") {
+		t.Errorf("status error = %v, want it to name the whole-repo scope and point at discard", err)
+	}
+	if strings.Contains(out.String(), "Auto-mergeable") {
+		t.Errorf("status output %q must not render an auto-mergeable verdict for a defeated scope", out.String())
+	}
+
+	mergeCmd := newMergeCmd()
+	if err := mergeCmd.Flags().Set("approve", "true"); err != nil {
+		t.Fatal(err)
+	}
+	outM, _, err := run(mergeCmd, nil)
+	if err == nil {
+		t.Fatal("merge --approve over a whole-repo-scope writ: expected a refusal")
+	}
+	if !strings.Contains(err.Error(), "whole repo") {
+		t.Errorf("merge --approve error = %v, want it to name the whole-repo scope", err)
+	}
+	if strings.Contains(outM.String(), "merged into") {
+		t.Errorf("merge --approve output %q must not report a merge", outM.String())
+	}
+	if branch := strings.TrimSpace(mustRunGit(t, dir, "branch", "--show-current")); branch == "base" {
+		t.Error("a refused merge must not check out base")
+	}
+	if _, statErr := os.Stat(statePath); statErr != nil {
+		t.Errorf("a refused merge must leave the state file in place: %v", statErr)
+	}
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -71,8 +72,24 @@ func loadOpenWrit(cmd *cobra.Command, repoDir string) (*writ.Writ, error) {
 
 // decide runs drift computation, verification, and the mergeability gate for
 // an already-loaded writ - the pipeline shared by `writ status` and
-// `writ merge`.
+// `writ merge`. It refuses a writ whose declared scope covers the whole
+// repo: intake (propose/approve) already rejects one, so reaching this point
+// means the state file was hand-edited or broken after approval, and drift
+// against such a scope is vacuously zero - the writ would auto-merge with
+// arbitrary unreviewed changes.
 func decide(repoDir string, w *writ.Writ) (gate.Decision, *drift.Report, *evidence.Report, error) {
+	var covered []string
+	for _, s := range w.Scope {
+		if writ.IsWholeRepoScope(s) {
+			covered = append(covered, fmt.Sprintf("%q", s))
+		}
+	}
+	if len(covered) > 0 {
+		return gate.Decision{}, nil, nil, fmt.Errorf(
+			"invalid writ: scope entry(s) %s cover the whole repo, which defeats drift detection; run `writ discard` and propose again",
+			strings.Join(covered, ", "))
+	}
+
 	d, err := drift.Compute(w, repoDir)
 	if err != nil {
 		return gate.Decision{}, nil, nil, fmt.Errorf("computing drift: %w", err)

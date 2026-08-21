@@ -12,7 +12,7 @@ only what fell outside the writ - the drift. Zero drift, plus every criterion me
 green verification, merges with no human at all.
 
 A writ that declares its scope as the whole repository makes drift meaningless, so writ
-refuses to accept one.
+refuses to accept one - at intake and again before any status or merge decision.
 
 ## Install
 

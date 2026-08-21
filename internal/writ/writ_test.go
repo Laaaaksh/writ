@@ -136,6 +136,31 @@ func TestValidateValid(t *testing.T) {
 	}
 }
 
+func TestIsWholeRepoScope(t *testing.T) {
+	tests := []struct {
+		entry string
+		want  bool
+	}{
+		{"**", true},
+		{"**/*", true},
+		{"*", true},
+		{".", true},
+		{"/", true},
+		{"./**", true},
+		{"  **  ", true}, // surrounding whitespace must not smuggle it past the check
+		{"internal/**", false},
+		{"cmd/foo/main.go", false},
+		{"a**b", false},
+		{".hidden/**", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := IsWholeRepoScope(tt.entry); got != tt.want {
+			t.Errorf("IsWholeRepoScope(%q) = %v, want %v", tt.entry, got, tt.want)
+		}
+	}
+}
+
 func TestValidateRejections(t *testing.T) {
 	tests := []struct {
 		name   string
