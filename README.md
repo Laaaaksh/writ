@@ -109,7 +109,9 @@ branch into `base` and clears `.writ/current.toml`.
 
 Run both from the writ's own feature branch, not from `base`: writ refuses them while HEAD
 is on the base branch itself, where nothing can be merged and commits on base would be
-invisible to drift.
+invisible to drift. Linked `git worktree` checkouts work too, but `merge` additionally
+needs `base` not to be checked out anywhere else - git allows a branch in only one worktree -
+so writ refuses with the command to detach or remove the checkout holding it.
 
 The verification command runs through `sh -c` in the repo root; its exit code alone decides
 pass or fail. It is killed after 10 minutes by default - set `WRIT_VERIFY_TIMEOUT` (a duration

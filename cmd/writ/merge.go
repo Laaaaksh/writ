@@ -106,6 +106,12 @@ func gitMerge(repoDir, base string) error {
 		return fmt.Errorf("refusing to merge: already on base branch %q", base)
 	}
 
+	if held, ok := baseHeldInOtherWorktree(repoDir, base); ok {
+		return fmt.Errorf(
+			"refusing to merge: base branch %q is checked out in another worktree (%s); git refuses to check a branch out in two places - free it first with git -C %s switch --detach, or drop that worktree entirely with git worktree remove %s, then run writ merge again",
+			base, held, held, held)
+	}
+
 	if err := runGit(repoDir, "checkout", base); err != nil {
 		return fmt.Errorf("checking out base branch %q: %w", base, err)
 	}
@@ -177,6 +183,53 @@ func currentBranch(repoDir string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
+}
+
+// baseHeldInOtherWorktree reports the path of a worktree - other than
+// repoDir itself - where base is checked out. Git refuses to check out a
+// branch that is already checked out elsewhere ("is already used by
+// worktree ..."), so when an agent does its work in a linked worktree while
+// the main checkout sits on base, writ's checkout of base would die with
+// that raw git fatal after status already called the writ auto-mergeable.
+// Detecting it here turns that dead end into instructions: detach or remove
+// the other worktree so base is free, then merge from here.
+//
+// A probe failure is deliberately non-fatal and reported as "not held":
+// without linked worktrees there is nothing to detect, and on a git too old
+// for `worktree list --porcelain` falling through just preserves the raw
+// checkout error users saw before.
+func baseHeldInOtherWorktree(repoDir, base string) (string, bool) {
+	out, err := runGitOutput(repoDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return "", false
+	}
+
+	here := samePath(repoDir)
+	var path string
+	for _, line := range strings.Split(out, "\n") {
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			path = strings.TrimPrefix(line, "worktree ")
+		case strings.HasPrefix(line, "branch refs/heads/"):
+			name := strings.TrimPrefix(line, "branch refs/heads/")
+			if name == base && path != "" && samePath(path) != here {
+				return path, true
+			}
+		}
+	}
+	return "", false
+}
+
+// samePath resolves one filesystem path for equality comparisons against
+// another resolved the same way. Worktree listings print absolute paths that
+// may differ from repoRoot()'s only by symlinked parents (/tmp vs
+// /private/tmp on macOS), which must not count as different trees.
+func samePath(p string) string {
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return filepath.Clean(p)
+	}
+	return resolved
 }
 
 func runGit(repoDir string, args ...string) error {
