@@ -114,6 +114,11 @@ func stdinIsInteractive(r io.Reader) bool {
 // repo-local .git/info/exclude - local to this clone, never pushed or
 // committed. Any failure is only a warning, never a propose failure:
 // decide() still refuses genuinely tracked state at status/merge time.
+//
+// The rule goes into the COMMON git dir (--git-common-dir), not whatever
+// --absolute-git-dir reports: git reads info/exclude only from the common
+// dir, so seeding the per-worktree gitdir of a linked worktree would
+// silently have no effect there.
 func ensureWritExcluded(cmd *cobra.Command, repoDir string) {
 	stateRel := writ.Dir + "/current.toml"
 
@@ -121,7 +126,7 @@ func ensureWritExcluded(cmd *cobra.Command, repoDir string) {
 		return
 	}
 
-	gitDir, err := runGitOutput(repoDir, "rev-parse", "--absolute-git-dir")
+	gitDir, err := runGitOutput(repoDir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		warnExcludeSeedFailed(cmd, err)
 		return

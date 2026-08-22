@@ -363,6 +363,49 @@ func TestRunProposeSeedsLocalExclude(t *testing.T) {
 	}
 }
 
+// TestRunProposeSeedsExcludeInLinkedWorktree proves the seeded ignore rule
+// lands where git actually reads it when proposing from a linked worktree:
+// git reads info/exclude only from the COMMON dir, so seeding the
+// per-worktree gitdir (what --absolute-git-dir reports) would silently have
+// no effect and a blanket `git add -A` would track writ's state.
+func TestRunProposeSeedsExcludeInLinkedWorktree(t *testing.T) {
+	dir := newTestRepo(t)
+
+	wtBase := t.TempDir()
+	wt := filepath.Join(wtBase, "wt")
+	mustRunGit(t, dir, "worktree", "add", "-q", "-b", "wtbranch", wt)
+	withDir(t, wt)
+
+	proposeWritTOML(t, validWritTOML)
+
+	excludePath := filepath.Join(dir, ".git", "info", "exclude")
+	data, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("propose did not seed the common-dir .git/info/exclude from a worktree: %v", err)
+	}
+	if n := strings.Count(string(data), ".writ/"); n != 1 {
+		t.Errorf("seeded exclude mentions .writ/ %d times, want exactly 1:\n%s", n, data)
+	}
+
+	worktreeExclude := filepath.Join(dir, ".git", "worktrees", "wt", "info", "exclude")
+	if _, statErr := os.Stat(worktreeExclude); !os.IsNotExist(statErr) {
+		t.Errorf("per-worktree info/exclude should not be seeded (stat error: %v)", statErr)
+	}
+
+	// git itself must agree, evaluated from inside the worktree.
+	if out := mustRunGit(t, wt, "check-ignore", ".writ/current.toml"); strings.TrimSpace(out) == "" {
+		t.Error("check-ignore in the worktree reports .writ/current.toml not excluded after seeding")
+	}
+	if err := os.WriteFile(filepath.Join(wt, "feature.txt"), []byte("feature v2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustRunGit(t, wt, "add", "-A")
+	mustRunGit(t, wt, "commit", "-q", "-m", "implement")
+	if out := mustRunGit(t, wt, "ls-files", ".writ"); strings.TrimSpace(out) != "" {
+		t.Errorf("blanket `git add -A` in the worktree tracked writ state after seeding: %q", out)
+	}
+}
+
 // TestRunProposeSkipsExcludeSeedWhenAlreadyIgnored proves seeding stays out
 // of the way when the user already ignores .writ/ through their own
 // committed .gitignore - no redundant lines land in .git/info/exclude.
