@@ -47,9 +47,9 @@ brews:
       name: homebrew-writ
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/Laaaaksh/writ"
-    description: "The agreed scope of a piece of work, approved before any code exists"
+    description: "Agreed scope of work, approved before any code exists"
     license: "MIT"
     install: |
       bin.install "writ"
     test: |
-      system "#{bin}/writ", "version"
+      system bin/"writ", "version"
