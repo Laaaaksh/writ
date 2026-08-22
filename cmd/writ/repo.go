@@ -26,6 +26,11 @@ func repoRoot() (string, error) {
 	if err == nil {
 		return strings.TrimSpace(string(out)), nil
 	}
+	// A missing git binary would otherwise surface as "not inside a git
+	// repository" with advice to run `git init`, which cannot work either.
+	if errors.Is(err, exec.ErrNotFound) {
+		return "", errors.New("git was not found in PATH; writ needs git to work - install it first")
+	}
 	return "", errNotInRepo
 }
 

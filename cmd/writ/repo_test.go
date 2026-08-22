@@ -29,6 +29,29 @@ func TestRepoRootOutsideRepoFails(t *testing.T) {
 	}
 }
 
+// TestRepoRootNamesMissingGit proves that when the git binary itself is
+// absent from PATH, writ names that instead of claiming "not inside a git
+// repository" and advising `git init`, which cannot succeed without git.
+func TestRepoRootNamesMissingGit(t *testing.T) {
+	empty := t.TempDir()
+	dir := newTestRepo(t)
+	withDir(t, dir)
+	t.Setenv("PATH", empty)
+
+	root, err := repoRoot()
+	if err == nil {
+		t.Fatalf("repoRoot without git in PATH = %q, want an error", root)
+	}
+	if errors.Is(err, errNotInRepo) {
+		t.Errorf("repoRoot error = %v, want a missing-git message rather than errNotInRepo", err)
+	}
+	for _, want := range []string{"git was not found in PATH", "install it first"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("repoRoot error %q does not mention %q", err, want)
+		}
+	}
+}
+
 func TestRepoRootInsideRepo(t *testing.T) {
 	dir := newTestRepo(t)
 	withDir(t, dir)

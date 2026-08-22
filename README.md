@@ -27,7 +27,9 @@ brew install Laaaaksh/writ/writ
 The `brew trust` step is required once: current Homebrew refuses to load formulae from
 third-party taps it has not been told to trust.
 
-The binary has no runtime dependencies. Alternatively, with a Go toolchain:
+writ ships for macOS and Linux. Its only runtime requirements are `git`,
+which every command uses to compute drift and merge, and a POSIX `sh`, which
+runs verification commands and `$EDITOR` launches. Alternatively, with a Go toolchain:
 
 ```
 go install github.com/Laaaaksh/writ/cmd/writ@latest
