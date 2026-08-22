@@ -2,6 +2,8 @@ package writ
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -136,6 +138,31 @@ func TestValidateValid(t *testing.T) {
 	}
 }
 
+func TestIsWholeRepoScope(t *testing.T) {
+	tests := []struct {
+		entry string
+		want  bool
+	}{
+		{"**", true},
+		{"**/*", true},
+		{"*", true},
+		{".", true},
+		{"/", true},
+		{"./**", true},
+		{"  **  ", true}, // surrounding whitespace must not smuggle it past the check
+		{"internal/**", false},
+		{"cmd/foo/main.go", false},
+		{"a**b", false},
+		{".hidden/**", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := IsWholeRepoScope(tt.entry); got != tt.want {
+			t.Errorf("IsWholeRepoScope(%q) = %v, want %v", tt.entry, got, tt.want)
+		}
+	}
+}
+
 func TestValidateRejections(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -199,6 +226,33 @@ func TestValidateRejections(t *testing.T) {
 			},
 		},
 		{
+			name: "criterion with empty id",
+			mutate: func(w *Writ) {
+				w.Criteria = []Criterion{
+					{ID: "", Text: "a"},
+					{ID: "c2", Text: "b"},
+				}
+			},
+		},
+		{
+			name: "criterion with whitespace-only id",
+			mutate: func(w *Writ) {
+				w.Criteria[0].ID = "   "
+			},
+		},
+		{
+			name: "criterion with empty text",
+			mutate: func(w *Writ) {
+				w.Criteria[0].Text = ""
+			},
+		},
+		{
+			name: "criterion with whitespace-only text",
+			mutate: func(w *Writ) {
+				w.Criteria[0].Text = "  \t "
+			},
+		},
+		{
 			name:   "empty verify command",
 			mutate: func(w *Writ) { w.Verify.Command = "" },
 		},
@@ -243,6 +297,25 @@ func TestValidateApprovedAndAttestedIsValid(t *testing.T) {
 	}
 }
 
+func TestValidateNamesEmptyCriterionIdAndText(t *testing.T) {
+	w := validWrit()
+	w.Criteria = []Criterion{{ID: "  ", Text: ""}}
+
+	err := w.Validate()
+	if err == nil {
+		t.Fatal("Validate: expected an error for a criterion with no id and no text")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`criterion 1: id must not be empty`,
+		`criterion "  ": text must not be empty`,
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("Validate error missing %q: %s", want, msg)
+		}
+	}
+}
+
 func TestValidateReportsAllProblems(t *testing.T) {
 	w := &Writ{}
 	err := w.Validate()
@@ -256,5 +329,151 @@ func TestValidateReportsAllProblems(t *testing.T) {
 		if !strings.Contains(msg, want) {
 			t.Errorf("Validate error missing %q: %s", want, msg)
 		}
+	}
+}
+
+// proposalWrit is a clean draft: every criterion unassessed, as intake
+// requires before any human has agreed to the contract.
+func proposalWrit() *Writ {
+	w := validWrit()
+	for i := range w.Criteria {
+		w.Criteria[i].Met = nil
+		w.Criteria[i].Attestation = nil
+	}
+	return w
+}
+
+func TestValidateProposalCleanDraft(t *testing.T) {
+	if err := proposalWrit().ValidateProposal(); err != nil {
+		t.Fatalf("ValidateProposal on a clean draft: %v", err)
+	}
+	if err := proposalWrit().Validate(); err != nil {
+		t.Fatalf("Validate on a clean draft: %v", err)
+	}
+}
+
+func TestValidateProposalRefusesValidWritCarryingMet(t *testing.T) {
+	// validWrit ships Criteria[0].Met = true without an attestation: legal
+	// mid-flight state after attest/unattest churn, but a proposal must
+	// arrive entirely unassessed.
+	if err := validWrit().ValidateProposal(); err == nil {
+		t.Fatal("ValidateProposal: expected refusal of a draft carrying met, got nil")
+	}
+}
+
+func TestValidateProposalNamesPreAssessedCriteria(t *testing.T) {
+	w := proposalWrit()
+	met := true
+	w.Criteria[0].Met = &met
+	w.Criteria[1].Attestation = &Attestation{By: "human", Note: "self-blessed"}
+
+	err := w.ValidateProposal()
+	if err == nil {
+		t.Fatal("ValidateProposal: expected an error for pre-assessed criteria, got nil")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`criterion "c1" arrives already assessed`,
+		`criterion "c2" arrives already assessed`,
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error missing %q: %s", want, msg)
+		}
+	}
+}
+
+func TestValidateStillAcceptsApprovedAndAttested(t *testing.T) {
+	// Only intake runs ValidateProposal, so the full lifecycle state must
+	// fail there (it carries assessments) and stay valid under plain
+	// Validate.
+	if err := approvedWrit().ValidateProposal(); err == nil {
+		t.Error("ValidateProposal on an approved, attested writ: expected an error, got nil")
+	}
+	if err := approvedWrit().Validate(); err != nil {
+		t.Fatalf("Validate on an approved, attested writ: %v", err)
+	}
+}
+
+func TestParseRefusesUnknownKeys(t *testing.T) {
+	// Parse guards author-written input, so a typo such as "titel" or a
+	// mistyped key inside a criterion must be named outright instead of
+	// being silently dropped and resurfacing as "X must not be empty".
+	doc := `
+titel = "retry webhook"
+intent = "add a retry"
+base = "main"
+created = 2026-01-01T00:00:00Z
+scope = ["internal/webhook/**"]
+
+[[criteria]]
+id = "c1"
+txt = "a 5xx response is retried"
+
+[verify]
+command = "go test ./..."
+`
+
+	w, err := Parse([]byte(doc))
+	if err == nil {
+		t.Fatalf("Parse accepted unknown keys, got %+v", w)
+	}
+	for _, want := range []string{`"titel"`, `"criteria.txt"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %v, want it to name %s", err, want)
+		}
+	}
+}
+
+func TestParseAcceptsEveryWritableField(t *testing.T) {
+	// Whatever Save can write must parse back without an unknown-key
+	// refusal, including the omitempty fields (met, attestation, approved):
+	// otherwise approve's strict editor round-trip would reject writ's own
+	// state.
+	dir := t.TempDir()
+	if err := approvedWrit().Save(dir); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, Dir, "current.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse refused a document Save wrote: %v", err)
+	}
+	if got.Approved == nil || got.Criteria[0].Attestation == nil || got.Criteria[1].Met == nil {
+		t.Errorf("omitempty fields must survive the round trip, got %+v", got)
+	}
+}
+
+func TestLoadToleratesUnknownKeys(t *testing.T) {
+	// The deliberate asymmetry with Parse: current.toml is written by
+	// Save, so unknown keys there can only mean version skew or a hand
+	// edit; Load must keep the mapped fields usable rather than strand the
+	// open writ behind them.
+	dir := t.TempDir()
+	if err := validWrit().Save(dir); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	path := filepath.Join(dir, Dir, "current.toml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withExtra := strings.Replace(string(data), "[verify]", "priority = 3\n\n[verify]", 1)
+	if withExtra == string(data) {
+		t.Fatal("[verify] table header not found in saved output")
+	}
+	if err := os.WriteFile(path, []byte(withExtra), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load refused an unknown key: %v", err)
+	}
+	if got.ID != "w1" || got.Verify.Command != "go test ./..." {
+		t.Errorf("Load lost mapped fields over an unknown key: %+v", got)
 	}
 }

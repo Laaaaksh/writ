@@ -97,20 +97,21 @@ func Run(w *writ.Writ, repoDir string) (*Report, error) {
 			Command:  command,
 			ExitCode: -1,
 			Output:   buf.String(),
-			Summary:  fmt.Sprintf("timed out after %s", timeout),
+			Summary:  fmt.Sprintf("timed out after %s; set WRIT_VERIFY_TIMEOUT to change this", timeout),
 		}, nil
 	}
 }
 
 // verifyTimeout reads WRIT_VERIFY_TIMEOUT as a Go duration string, falling
-// back to defaultTimeout if unset or invalid.
+// back to defaultTimeout if unset, invalid, or non-positive — a zero or
+// negative timeout would otherwise kill every verification instantly.
 func verifyTimeout() time.Duration {
 	raw := os.Getenv("WRIT_VERIFY_TIMEOUT")
 	if raw == "" {
 		return defaultTimeout
 	}
 	d, err := time.ParseDuration(raw)
-	if err != nil {
+	if err != nil || d <= 0 {
 		return defaultTimeout
 	}
 	return d

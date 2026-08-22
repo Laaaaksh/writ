@@ -36,11 +36,7 @@ func runAttest(cmd *cobra.Command, id, note string, human bool) error {
 		return err
 	}
 
-	w, err := writ.Load(repoDir)
-	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
-		return exitCodeErr{code: 2}
-	}
+	w, err := loadOpenWrit(cmd, repoDir)
 	if err != nil {
 		return err
 	}
@@ -95,11 +91,7 @@ func runUnattest(cmd *cobra.Command, id string) error {
 		return err
 	}
 
-	w, err := writ.Load(repoDir)
-	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
-		return exitCodeErr{code: 2}
-	}
+	w, err := loadOpenWrit(cmd, repoDir)
 	if err != nil {
 		return err
 	}

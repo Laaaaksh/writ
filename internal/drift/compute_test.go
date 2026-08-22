@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Laaaaksh/writ/internal/writ"
@@ -18,9 +19,24 @@ func newTestRepo(t *testing.T) string {
 	git(t, dir, "init", "-q", "-b", "main")
 	git(t, dir, "config", "user.email", "test@example.com")
 	git(t, dir, "config", "user.name", "Test")
+	// Pin the configs a contributor machine may set globally and that would
+	// otherwise break or alter commits made inside these throwaway repos.
+	git(t, dir, "config", "commit.gpgsign", "false")
 	writeFile(t, dir, "README.md", "seed\n")
 	git(t, dir, "add", "README.md")
 	git(t, dir, "commit", "-q", "-m", "initial")
+	return dir
+}
+
+// newUnbornRepo creates a git repo with no commits at all: HEAD points at a
+// branch that does not exist yet.
+func newUnbornRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	git(t, dir, "init", "-q", "-b", "main")
+	git(t, dir, "config", "user.email", "test@example.com")
+	git(t, dir, "config", "user.name", "Test")
+	git(t, dir, "config", "commit.gpgsign", "false")
 	return dir
 }
 
@@ -289,6 +305,28 @@ func TestCompute_SimilarlyNamedPathsAreNotExcludedByPrefix(t *testing.T) {
 	}
 }
 
+func TestCompute_UnbornHeadClassifiesStagedAndUntrackedWork(t *testing.T) {
+	dir := newUnbornRepo(t)
+	writeFile(t, dir, "app/new.go", "package app\n")
+	git(t, dir, "add", "app/new.go")
+	writeFile(t, dir, "stray.txt", "not mine\n")
+
+	report, err := Compute(testWrit("app/**"), dir)
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	fc, ok := findChange(report.InScope, "app/new.go")
+	if !ok {
+		t.Fatalf("expected staged app/new.go in scope, got %+v / %+v", report.InScope, report.Drift)
+	}
+	if fc.Added != 1 {
+		t.Errorf("expected 1 added line, got %+v", fc)
+	}
+	if _, ok := findChange(report.Drift, "stray.txt"); !ok {
+		t.Errorf("expected untracked stray.txt in drift, got %+v / %+v", report.InScope, report.Drift)
+	}
+}
+
 func TestCompute_NonExistentBaseReturnsError(t *testing.T) {
 	dir := newTestRepo(t)
 	writeFile(t, dir, "app/foo.go", "package app\n")
@@ -303,5 +341,35 @@ func TestCompute_NonExistentBaseReturnsError(t *testing.T) {
 	}
 	if report != nil {
 		t.Errorf("expected nil report on error, got %+v", report)
+	}
+	if !strings.Contains(err.Error(), `"does-not-exist"`) || !strings.Contains(err.Error(), "discard") {
+		t.Errorf("error = %v, want it to name the base and point at `writ discard`", err)
+	}
+	if strings.Contains(err.Error(), "ambiguous argument") {
+		t.Errorf("error = %v, want a clean message, not raw git plumbing output", err)
+	}
+}
+
+// TestCompute_EmptyBaseRefused locks the base axis of the vacuous-drift
+// defense: git treats an empty left side of "base...HEAD" as an empty diff
+// rather than an error, so a writ whose saved base was blanked after
+// approval would lose every committed change from the report and could pass
+// as zero-drift. Compute must refuse instead of computing against nothing.
+func TestCompute_EmptyBaseRefused(t *testing.T) {
+	dir := newTestRepo(t)
+	writeFile(t, dir, "stray.txt", "unreviewed\n")
+	git(t, dir, "add", "stray.txt")
+	git(t, dir, "commit", "-q", "-m", "out of scope")
+
+	for _, base := range []string{"", "   "} {
+		w := testWrit("app/**")
+		w.Base = base
+		report, err := Compute(w, dir)
+		if err == nil {
+			t.Fatalf("base %q: expected refusal, got report %+v", base, report)
+		}
+		if !strings.Contains(err.Error(), "does not exist") || !strings.Contains(err.Error(), "discard") {
+			t.Errorf("base %q: error = %v, want it to name the missing base and point at discard", base, err)
+		}
 	}
 }

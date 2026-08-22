@@ -40,11 +40,12 @@ func runMerge(cmd *cobra.Command, approve bool) error {
 		return err
 	}
 
-	w, dec, d, e, err := evaluate(repoDir)
-	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
-		return exitCodeErr{code: 2}
+	w, err := loadOpenWrit(cmd, repoDir)
+	if err != nil {
+		return err
 	}
+
+	dec, d, e, err := decide(repoDir, w)
 	if err != nil {
 		return err
 	}
@@ -118,8 +119,52 @@ func gitMerge(repoDir, base string) error {
 	return nil
 }
 
+// isDirty reports whether the working tree holds changes a merge must not
+// disturb. Writ's own runtime state under writ.Dir never counts:
+// propose/approve/attest leave .writ/current.toml untracked or modified by
+// design, and that bookkeeping would otherwise block every merge on the
+// documented happy path unless the user happens to gitignore it.
+//
+// --untracked-files=all is passed explicitly so the verdict depends only on
+// repo state, not the user's `status.showUntrackedFiles` display preference,
+// which would otherwise silently hide untracked files from the check (the
+// same explicit flag drift.Compute already uses).
 func isDirty(repoDir string) (bool, error) {
-	out, err := runGitOutput(repoDir, "status", "--porcelain")
+	out, err := runGitOutput(repoDir, "status", "--porcelain", "-z", "--untracked-files=all")
+	if err != nil {
+		return false, err
+	}
+	for _, tok := range strings.Split(out, "\x00") {
+		if tok == "" || isWritStateEntry(tok) {
+			continue
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+// isWritStateEntry reports whether one porcelain -z token refers to a path
+// under writ's own state directory. Entry tokens are "XY PATH"; for renames
+// the old path follows as a separate bare token, which this conservatively
+// counts as user work.
+func isWritStateEntry(tok string) bool {
+	if len(tok) < 4 || tok[2] != ' ' {
+		return false
+	}
+	path := tok[3:]
+	return path == writ.Dir || strings.HasPrefix(path, writ.Dir+"/")
+}
+
+// writStateTracked reports whether git knows about writ's own state file,
+// .writ/current.toml - committed or merely staged, since ls-files reads the
+// index and a staged copy poisons checkout exactly like a committed one. A
+// tracked state file breaks the merge writ performs: later saves leave it
+// locally modified, so checking out base dies on git's raw "local changes
+// would be overwritten" output, while a copy committed on the branch merges
+// back onto base as stale state and leaves a phantom deletion dirtying the
+// tree after every merge.
+func writStateTracked(repoDir string) (bool, error) {
+	out, err := runGitOutput(repoDir, "ls-files", "-z", "--", writ.Dir+"/current.toml")
 	if err != nil {
 		return false, err
 	}

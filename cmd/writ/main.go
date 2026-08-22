@@ -54,6 +54,12 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 	}
 
+	// --version / -v on the root must answer with the same line as
+	// `writ version` (including goreleaser-stamped commit/date), so scripts
+	// probing either form agree on the binary's identity.
+	root.Version = versionString(version, commit, date)
+	root.SetVersionTemplate("{{.Version}}\n")
+
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newProposeCmd())
 	root.AddCommand(newApproveCmd())
@@ -61,6 +67,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(newUnattestCmd())
 	root.AddCommand(newStatusCmd())
 	root.AddCommand(newMergeCmd())
+	root.AddCommand(newDiscardCmd())
 
 	return root
 }

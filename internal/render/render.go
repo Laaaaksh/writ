@@ -28,8 +28,13 @@ const (
 // Status renders a human-readable summary of w's drift, verification
 // evidence, and merge decision.
 func Status(w *writ.Writ, d *drift.Report, e *evidence.Report, dec gate.Decision) string {
-	color := useColor(isTerminal(os.Stdout), os.Getenv("NO_COLOR"))
+	return statusString(w, d, e, dec, useColor(isTerminal(os.Stdout), os.Getenv("NO_COLOR")))
+}
 
+// statusString is Status with the color decision injected, so the colored
+// verdict paths - what every interactive terminal sees on every status run -
+// are testable without needing a real terminal on os.Stdout.
+func statusString(w *writ.Writ, d *drift.Report, e *evidence.Report, dec gate.Decision, color bool) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "  writ    %s\n\n", w.Intent)

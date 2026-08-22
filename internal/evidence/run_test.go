@@ -94,8 +94,43 @@ func TestRun_Timeout(t *testing.T) {
 	if !strings.Contains(report.Summary, "timed out") {
 		t.Errorf("Summary = %q, want it to mention timeout", report.Summary)
 	}
+	// The timeout knob must be named in the message users actually see,
+	// since render.Status prints this Summary verbatim as the EVIDENCE line.
+	if !strings.Contains(report.Summary, "WRIT_VERIFY_TIMEOUT") {
+		t.Errorf("Summary = %q, want it to name WRIT_VERIFY_TIMEOUT so users can discover the knob", report.Summary)
+	}
 	if elapsed > 4*time.Second {
 		t.Errorf("Run took %v, want well under the 5s sleep — timeout did not cut it short", elapsed)
+	}
+}
+
+// TestVerifyTimeoutFallback locks down every WRIT_VERIFY_TIMEOUT input path:
+// unset and invalid fall back to the default, and so does a non-positive
+// duration — which would otherwise kill every verification instantly.
+func TestVerifyTimeoutFallback(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string // empty means leave the variable unset
+		want time.Duration
+	}{
+		{name: "unset uses default", raw: "", want: defaultTimeout},
+		{name: "valid duration is honored", raw: "90s", want: 90 * time.Second},
+		{name: "invalid string falls back", raw: "soon", want: defaultTimeout},
+		{name: "bare number without unit falls back", raw: "30", want: defaultTimeout},
+		{name: "zero falls back", raw: "0s", want: defaultTimeout},
+		{name: "negative falls back", raw: "-5m", want: defaultTimeout},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.raw == "" {
+				t.Setenv("WRIT_VERIFY_TIMEOUT", "")
+			} else {
+				t.Setenv("WRIT_VERIFY_TIMEOUT", tt.raw)
+			}
+			if got := verifyTimeout(); got != tt.want {
+				t.Errorf("verifyTimeout() with WRIT_VERIFY_TIMEOUT=%q = %v, want %v", tt.raw, got, tt.want)
+			}
+		})
 	}
 }
 

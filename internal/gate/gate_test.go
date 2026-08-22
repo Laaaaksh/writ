@@ -184,6 +184,19 @@ func TestDecide(t *testing.T) {
 			wantReasonHas:  `criterion "c1" not met`,
 		},
 		{
+			name: "no criteria never auto-merges",
+			w: func() *writ.Writ {
+				w := cleanWrit()
+				w.Criteria = nil
+				return w
+			}(),
+			d:              cleanDrift(),
+			e:              passingEvidence(),
+			wantMergeable:  false,
+			wantNeedsHuman: true,
+			wantReasonHas:  "writ has no acceptance criteria",
+		},
+		{
 			name: "multiple reasons all reported",
 			w: func() *writ.Writ {
 				w := cleanWrit()

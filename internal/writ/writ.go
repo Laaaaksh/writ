@@ -3,6 +3,7 @@
 package writ
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -34,6 +35,15 @@ var wholeRepoScopes = map[string]bool{
 	".":    true,
 	"/":    true,
 	"./**": true,
+}
+
+// IsWholeRepoScope reports whether one scope entry covers the entire
+// repository, making drift detection meaningless. It is exported so the
+// refusal is enforced continuously - at intake (Validate) and again before
+// any status or merge decision loads the open writ - not just once at
+// propose time.
+func IsWholeRepoScope(entry string) bool {
+	return wholeRepoScopes[strings.TrimSpace(entry)]
 }
 
 // Writ is the agreed scope of a piece of work: an intent, a set of checkable
@@ -78,6 +88,12 @@ type VerifySpec struct {
 
 // Load reads .writ/current.toml relative to repoDir.
 // Returns ErrNoWrit if the file does not exist.
+//
+// Unlike Parse, Load tolerates keys that name no Writ field: this file is
+// written by Save, so unknown keys can only mean another writ version's or a
+// hand-edited state, and refusing them would strand an open writ behind mere
+// version skew instead of letting the decision-time validators judge the
+// fields that do map.
 func Load(repoDir string) (*Writ, error) {
 	path := filepath.Join(repoDir, writPath)
 	data, err := os.ReadFile(path)
@@ -91,6 +107,27 @@ func Load(repoDir string) (*Writ, error) {
 	var w Writ
 	if err := toml.Unmarshal(data, &w); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return &w, nil
+}
+
+// Parse decodes a writ from TOML data authored outside writ - a piped stdin
+// draft, a --file proposal, or $EDITOR output - rather than written by Save.
+// Beyond TOML syntax it refuses keys that name no Writ field: a lenient
+// decode would silently drop them and resurface later as misleading "X must
+// not be empty" validation problems instead of naming what was mistyped.
+func Parse(data []byte) (*Writ, error) {
+	var w Writ
+	md, err := toml.NewDecoder(bytes.NewReader(data)).Decode(&w)
+	if err != nil {
+		return nil, err
+	}
+	if undecoded := md.Undecoded(); len(undecoded) > 0 {
+		names := make([]string, len(undecoded))
+		for i, k := range undecoded {
+			names[i] = fmt.Sprintf("%q", k.String())
+		}
+		return nil, fmt.Errorf("unknown key(s) %s", strings.Join(names, ", "))
 	}
 	return &w, nil
 }
@@ -117,6 +154,21 @@ func (w *Writ) Save(repoDir string) error {
 
 // Validate returns a non-nil error describing every problem with this writ.
 func (w *Writ) Validate() error {
+	return w.validate(false)
+}
+
+// ValidateProposal returns a non-nil error describing every problem with w
+// as a proposed contract. It applies all of Validate's rules plus one more:
+// no criterion may arrive already assessed. An attestation is a claim made
+// after a human has agreed to the contract - `writ attest` refuses unapproved
+// writs for exactly that reason - so criteria carrying met/attestation in a
+// draft would let an author bless their own work before anyone signed off,
+// including through `approve --yes`, which approves as-is without review.
+func (w *Writ) ValidateProposal() error {
+	return w.validate(true)
+}
+
+func (w *Writ) validate(proposal bool) error {
 	var problems []string
 
 	if strings.TrimSpace(w.ID) == "" {
@@ -133,7 +185,7 @@ func (w *Writ) Validate() error {
 		problems = append(problems, "scope must not be empty")
 	}
 	for _, s := range w.Scope {
-		if wholeRepoScopes[strings.TrimSpace(s)] {
+		if IsWholeRepoScope(s) {
 			problems = append(problems, fmt.Sprintf("scope entry %q covers the whole repo, which defeats drift detection", s))
 		}
 	}
@@ -141,8 +193,21 @@ func (w *Writ) Validate() error {
 	if len(w.Criteria) < 1 {
 		problems = append(problems, "at least one criterion is required")
 	}
+	if proposal {
+		for _, c := range w.Criteria {
+			if c.Met != nil || c.Attestation != nil {
+				problems = append(problems, fmt.Sprintf("criterion %q arrives already assessed; proposals carry unmet, unattested criteria only - record claims with `writ attest` after approval", c.ID))
+			}
+		}
+	}
 	seen := make(map[string]bool, len(w.Criteria))
-	for _, c := range w.Criteria {
+	for i, c := range w.Criteria {
+		if strings.TrimSpace(c.ID) == "" {
+			problems = append(problems, fmt.Sprintf("criterion %d: id must not be empty", i+1))
+		}
+		if strings.TrimSpace(c.Text) == "" {
+			problems = append(problems, fmt.Sprintf("criterion %q: text must not be empty", c.ID))
+		}
 		if seen[c.ID] {
 			problems = append(problems, fmt.Sprintf("duplicate criterion id %q", c.ID))
 		}

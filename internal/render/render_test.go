@@ -233,6 +233,93 @@ func TestStatusPlainTextWhenNotATerminal(t *testing.T) {
 	}
 }
 
+// Exactly one drifted file must use the singular form in both the DRIFT
+// line and the verdict; "1 files" is the kind of sloppiness users notice.
+func TestStatusSingleDriftFileUsesSingular(t *testing.T) {
+	w := sampleWrit()
+	d := &drift.Report{Drift: []drift.FileChange{{Path: "cmd/rogue.sh", Added: 3}}}
+	e := &evidence.Report{Ran: true, Passed: true, Command: "go test ./...", Summary: "ok"}
+	dec := gate.Decide(w, d, e)
+
+	got := statusString(w, d, e, dec, false)
+
+	want := "" +
+		"  writ    add cancel action to AI calls\n" +
+		"\n" +
+		"  CONTRACT     4/4 criteria\n" +
+		"                 c1   claimed by agent   \"n1\"\n" +
+		"                 c2   claimed by agent   \"n2\"\n" +
+		"                 c3   claimed by agent   \"n3\"\n" +
+		"                 c4   claimed by agent   \"n4\"\n" +
+		"  EVIDENCE     ok\n" +
+		"  IN SCOPE     0 files\n" +
+		"  DRIFT        1 file outside declared scope\n" +
+		"                 cmd/rogue.sh   +3\n" +
+		"\n" +
+		"  Needs you: 1 file(s) drifted outside the declared scope.\n"
+
+	if got != want {
+		t.Errorf("Status mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+	if strings.Contains(got, "1 files") {
+		t.Errorf("singular drift count rendered as plural:\n%s", got)
+	}
+}
+
+// A modified file shows both directions, a deleted file must not render a
+// meaningless "+0", and an empty-change entry (mode flip, binary) degrades
+// to "+0" rather than something blank.
+func TestStatusChangeSummaries(t *testing.T) {
+	w := sampleWrit()
+	d := &drift.Report{Drift: []drift.FileChange{
+		{Path: "edited.txt", Added: 2, Deleted: 5},
+		{Path: "gone.txt", Deleted: 7},
+	}}
+	e := &evidence.Report{Ran: true, Passed: true, Command: "go test ./...", Summary: "ok"}
+	dec := gate.Decide(w, d, e)
+
+	got := statusString(w, d, e, dec, false)
+
+	if !strings.Contains(got, "edited.txt   +2 -5") {
+		t.Errorf("mixed change not rendered as \"+2 -5\":\n%s", got)
+	}
+	if !strings.Contains(got, "gone.txt     -7\n") {
+		t.Errorf("deletion-only change rendered wrong (want bare \"-7\", aligned under edited.txt):\n%s", got)
+	}
+	if strings.Contains(got, "+0 -7") {
+		t.Errorf("deletion-only change rendered a spurious +0:\n%s", got)
+	}
+}
+
+// The colored verdicts are what every interactive terminal user sees on
+// every status run; they must wrap exactly the verdict message in green or
+// red and always reset, while color=false never emits escapes.
+func TestStatusVerdictColors(t *testing.T) {
+	w := sampleWrit()
+	e := &evidence.Report{Ran: true, Passed: true, Command: "go test ./...", Summary: "ok"}
+
+	clean := &drift.Report{}
+	green := statusString(w, clean, e, gate.Decide(w, clean, e), true)
+	const greenMsg = "\033[32mAuto-mergeable: zero drift, verification passed, all criteria met.\033[0m"
+	if !strings.Contains(green, greenMsg) {
+		t.Errorf("mergeable verdict not wrapped in green with a reset:\n%q", green)
+	}
+
+	drifted := &drift.Report{Drift: []drift.FileChange{{Path: "x.go", Added: 1}}}
+	red := statusString(w, drifted, e, gate.Decide(w, drifted, e), true)
+	if !strings.HasPrefix(strings.TrimSpace(red[strings.Index(red, "\033[31m"):]), "\033[31mNeeds you:") {
+		t.Errorf("needs-human verdict not prefixed with red after trimming indent:\n%q", red)
+	}
+	if !strings.Contains(red, ".\033[0m\n") {
+		t.Errorf("needs-human verdict missing reset before its trailing newline:\n%q", red)
+	}
+
+	plain := statusString(w, clean, e, gate.Decide(w, clean, e), false)
+	if strings.Contains(plain, "\033[") {
+		t.Errorf("color=false emitted ANSI escapes:\n%q", plain)
+	}
+}
+
 func TestUseColor(t *testing.T) {
 	tests := []struct {
 		name       string

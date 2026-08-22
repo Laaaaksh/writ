@@ -1,8 +1,8 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -35,11 +35,7 @@ func runApprove(cmd *cobra.Command, yes bool) error {
 		return err
 	}
 
-	w, err := writ.Load(repoDir)
-	if errors.Is(err, writ.ErrNoWrit) {
-		fmt.Fprintln(cmd.ErrOrStderr(), "no writ is open in this repo; run `writ propose` to start one")
-		return exitCodeErr{code: 2}
-	}
+	w, err := loadOpenWrit(cmd, repoDir)
 	if err != nil {
 		return err
 	}
@@ -54,7 +50,14 @@ func runApprove(cmd *cobra.Command, yes bool) error {
 			return err
 		}
 
-		w, err = writ.Load(repoDir)
+		// Parse, not Load: what the editor saved is human-authored input,
+		// so a typo'd key must be named here rather than silently dropped
+		// and resurfacing as an empty-field validation problem.
+		edited, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return fmt.Errorf("reloading %s: %w", path, readErr)
+		}
+		w, err = writ.Parse(edited)
 		if err != nil {
 			return fmt.Errorf("reloading %s: %w", path, err)
 		}
@@ -63,7 +66,10 @@ func runApprove(cmd *cobra.Command, yes bool) error {
 		}
 	}
 
-	if err := w.Validate(); err != nil {
+	// ValidateProposal, not Validate: at approval time no criterion may
+	// carry an assessment either - claims are recorded via `writ attest`
+	// only after this step succeeds.
+	if err := w.ValidateProposal(); err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), err)
 		fmt.Fprintf(cmd.ErrOrStderr(), "\nfix the errors above and edit %s directly, then try again\n", path)
 		return errSilent
