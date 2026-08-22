@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an improvement or new capability for writ
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What are you trying to do?
+      description: The problem in your propose -> approve -> implement -> attest -> merge flow, not the solution. A workflow that needs a workaround today is a great answer.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should writ do?
+      description: The behavior you want, ideally as commands and output. If you have a sketch of a writ TOML change, include it.
+      placeholder: |
+        $ writ <something>
+        <expected output>
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+      description: Existing writ features, raw git, scripts, or other tools you use to get by without this.
+    validations:
+      required: false
