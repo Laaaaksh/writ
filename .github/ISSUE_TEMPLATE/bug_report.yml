@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a problem with writ
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands you ran and their output, including which git branch you were on.
+      placeholder: |
+        writ propose ...
+        writ approve --yes
+        ...
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: Output of `writ version`
+      placeholder: "writ version 0.2.4 (commit ..., built ...)"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, shell, and the output of `git --version`.
+      placeholder: "macOS 15, zsh, git 2.51"
+    validations:
+      required: true
