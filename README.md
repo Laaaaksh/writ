@@ -19,8 +19,13 @@ refuses to accept one - at intake and again before any status or merge decision.
 ## Install
 
 ```
+brew tap laaaaksh/writ
+brew trust laaaaksh/writ
 brew install Laaaaksh/writ/writ
 ```
+
+The `brew trust` step is required once: current Homebrew refuses to load formulae from
+third-party taps it has not been told to trust.
 
 The binary has no runtime dependencies. Alternatively, with a Go toolchain:
 
