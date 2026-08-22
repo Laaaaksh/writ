@@ -216,6 +216,86 @@ func TestGitMergeSuccessCleanMerge(t *testing.T) {
 	}
 }
 
+// newWorktreeRepo creates the linked-worktree shape agents actually use: a
+// main checkout sitting on "base" while a linked worktree holds "feature",
+// one commit ahead of it - perfectly mergeable content, blocked only by
+// git's rule that a branch may be checked out in just one worktree.
+func newWorktreeRepo(t *testing.T) (mainDir, wtDir string) {
+	t.Helper()
+	mainDir = t.TempDir()
+
+	mustRunGit(t, mainDir, "init", "-q", "-b", "base")
+	mustRunGit(t, mainDir, "config", "user.email", "test@example.com")
+	mustRunGit(t, mainDir, "config", "user.name", "Test")
+	mustRunGit(t, mainDir, "config", "commit.gpgsign", "false")
+
+	if err := os.WriteFile(filepath.Join(mainDir, "base.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustRunGit(t, mainDir, "add", "base.txt")
+	mustRunGit(t, mainDir, "commit", "-q", "-m", "base commit")
+
+	wtDir = filepath.Join(t.TempDir(), "feature-wt")
+	mustRunGit(t, mainDir, "worktree", "add", "-q", "-b", "feature", wtDir)
+
+	if err := os.WriteFile(filepath.Join(wtDir, "feature.txt"), []byte("feature\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustRunGit(t, wtDir, "add", "feature.txt")
+	mustRunGit(t, wtDir, "commit", "-q", "-m", "feature commit")
+
+	return mainDir, wtDir
+}
+
+// TestGitMergeRefusesBaseHeldInOtherWorktree locks in the linked-worktree
+// refusal: when base is checked out in the main checkout, merging from a
+// linked worktree must stop before checkout with instructions naming both
+// remedies, leaving branches and worktrees untouched.
+func TestGitMergeRefusesBaseHeldInOtherWorktree(t *testing.T) {
+	mainDir, wtDir := newWorktreeRepo(t)
+
+	err := gitMerge(wtDir, "base")
+	if err == nil {
+		t.Fatal("gitMerge from a linked worktree while base is checked out in the main checkout: expected an error, got nil")
+	}
+	for _, want := range []string{"another worktree", "switch --detach", "worktree remove"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("gitMerge error = %v; want it to mention %q", err, want)
+		}
+	}
+
+	if branch := strings.TrimSpace(mustRunGit(t, wtDir, "branch", "--show-current")); branch != "feature" {
+		t.Errorf("refused merge must leave the worktree on feature, got %q", branch)
+	}
+	if _, err := os.Stat(filepath.Join(mainDir, "feature.txt")); !os.IsNotExist(err) {
+		t.Errorf("refused merge must not touch the main checkout holding base: stat feature.txt = %v", err)
+	}
+}
+
+// TestGitMergeFromWorktreeAfterFreeingBase proves the refusal's remedy works:
+// once the main checkout stops holding base (detached), merging from the
+// linked worktree succeeds and lands it on base, leaving the main checkout
+// exactly where it was.
+func TestGitMergeFromWorktreeAfterFreeingBase(t *testing.T) {
+	mainDir, wtDir := newWorktreeRepo(t)
+
+	mustRunGit(t, mainDir, "checkout", "-q", "--detach")
+
+	if err := gitMerge(wtDir, "base"); err != nil {
+		t.Fatalf("gitMerge from the worktree after detaching the main checkout off base: %v", err)
+	}
+
+	if branch := strings.TrimSpace(mustRunGit(t, wtDir, "branch", "--show-current")); branch != "base" {
+		t.Errorf("expected the worktree to end up on base, got %q", branch)
+	}
+	if _, err := os.Stat(filepath.Join(wtDir, "feature.txt")); err != nil {
+		t.Errorf("expected feature.txt merged into base in the worktree: %v", err)
+	}
+	if head := strings.TrimSpace(mustRunGit(t, mainDir, "rev-parse", "HEAD")); head == strings.TrimSpace(mustRunGit(t, wtDir, "rev-parse", "refs/heads/base")) {
+		t.Error("the detached main checkout must stay at the pre-merge commit, not follow base forward")
+	}
+}
+
 func TestGitMergeRefusesOnConflict(t *testing.T) {
 	dir := newTestRepo(t)
 
