@@ -29,7 +29,7 @@ refuses to accept one - at intake and again before any status or merge decision.
 [![Platform](https://img.shields.io/badge/platform-macOS%20%E2%80%A2%20Linux-lightgrey)](#install)
 [![Homebrew](https://img.shields.io/badge/brew-laaaaksh%2Fwrit-orange?logo=homebrew)](#install)
 
-**[Install](#install) • [The loop](#the-loop-propose---approve---implement---attest---merge) • [Completions](#shell-completions) • [Exit codes](#exit-codes) • [Contributing](CONTRIBUTING.md) • [License](LICENSE)**
+**[Install](#install) • [The loop](#the-loop-propose---approve---implement---attest---merge) • [Agent rules](#drive-it-from-your-agents-rules) • [Completions](#shell-completions) • [Exit codes](#exit-codes) • [FAQ](#faq) • [Contributing](CONTRIBUTING.md) • [License](LICENSE)**
 
 **[Code of conduct](CODE_OF_CONDUCT.md) • [Contributing](CONTRIBUTING.md) • [License](LICENSE) • [Security](SECURITY.md)**
 
@@ -139,8 +139,20 @@ like `45s` or `30m`) to change that; invalid or non-positive values fall back to
 When a proposal is rejected or abandoned, `writ discard` removes the open writ so `propose`
 can start fresh; it touches only `.writ/current.toml`, never branches or commits.
 
+A full loop, as `status` sees it at the end of a real run - the agent's claim on record,
+verification green, nothing outside the declared scope:
+
 ```
 $ writ status
+  writ    add a retry to the webhook sender
+
+  CONTRACT     1/1 criteria
+                 retries-on-5xx   claimed by agent   "injected a 500 then watched the sender retry twice before succeeding"
+  EVIDENCE     go test ok
+  IN SCOPE     1 files
+  DRIFT        none
+
+  Auto-mergeable: zero drift, verification passed, all criteria met.
 ```
 
 ```
@@ -148,6 +160,37 @@ $ writ version
 ```
 
 Prints the writ CLI version; `writ --version` (or `-v`) prints the same line.
+
+## Drive it from your agent's rules
+
+writ only works if the agent actually follows the loop, and agents follow what their
+instruction file says. Paste this into your repo's `AGENTS.md` or `CLAUDE.md`:
+
+```markdown
+## Writ discipline
+
+For any non-trivial change, drive the writ loop instead of free-form editing:
+
+1. Propose before code. Read the relevant code first, then draft a complete
+   writ - intent, checkable criteria, the narrowest honest file scope, and a
+   verification command - and pipe it to `writ propose`. Never invent path
+   globs from memory: a lazy scope like `app/**` makes drift meaningless.
+2. Wait for approval. Never implement against an unapproved writ. The human
+   runs `writ approve`; proceed only once it succeeds. `--yes` is the
+   human's call, never yours.
+3. Stay inside the declared scope. Work on a branch off `base`. If the work
+   turns out to need files outside the writ's scope, stop: `writ discard`,
+   draft a new writ that covers reality, and propose again. Quiet scope
+   creep is exactly what writ exists to catch.
+4. Attest only what you checked. Run each criterion's check yourself, then
+   record it: `writ attest <criterion-id> --note "<what you observed>"`.
+   Never pass `--human`: that records a human confirmation, and only humans
+   may make one.
+5. Let exit codes decide. Run `writ status` from the feature branch. Exit 0
+   means it will auto-merge - say so and stop. Exit 1 means a human is
+   needed: print writ's reasons verbatim and wait. Never edit
+   `.writ/current.toml` by hand; use `attest`, `unattest`, or `discard`.
+```
 
 ## Exit codes
 
@@ -160,6 +203,36 @@ For scripting and agents, `writ` signals its decision on the process exit code:
 Output stays script-friendly: ANSI color appears only when stdout is a terminal,
 and setting `NO_COLOR` (to any non-empty value) turns it off even then, so piped
 or captured output is always plain text.
+
+## FAQ
+
+**Does writ need an AI subscription or API key?**
+
+No. writ never talks to a model provider: there is no HTTP client anywhere in it or in its
+two dependencies, it reads no API keys from your environment (the only variables it touches
+are `EDITOR`, `VISUAL`, `NO_COLOR`, and `WRIT_VERIFY_TIMEOUT`), and its only child processes
+are `git` and a POSIX `sh`. All the intelligence lives in whatever coding agent you already
+run; writ is just the contract both of you sign and the referee that checks the work.
+
+**Which agents can drive it?**
+
+Any agent that can write TOML text and run shell commands: Claude Code, Codex CLI,
+opencode, Cursor, aider, a cron script you wrote yourself. There is no plugin to install -
+the whole interface is stdin, stdout, and [exit codes](#exit-codes).
+
+**Can several agents work in one repo?**
+
+Not on one writ. State lives in a single `.writ/current.toml` per repository, and a second
+`propose` refuses while one is open. Give each parallel agent its own checkout with
+`git worktree add ../repo-agent-b`; each worktree holds its own open writ.
+
+**Should my parallel agents share my API key or subscription?**
+
+No. N agents behind one key multiply your request rate N-fold, so when the provider answers
+HTTP 429 (rate limited), all of them hit the wall at once - and each agent's retry logic
+then fires together, producing a retry storm that can burn through quota or get the key
+throttled entirely. Put each worktree on its own key or subscription so agents fail
+independently instead of failing together.
 
 ## Star this repo
 
