@@ -26,6 +26,24 @@ The binary has no runtime dependencies. Alternatively, with a Go toolchain:
 go install github.com/Laaaaksh/writ/cmd/writ@latest
 ```
 
+## Shell completions
+
+writ generates tab-completion scripts for bash, zsh, fish, and PowerShell;
+`writ completion <shell> --help` prints full per-shell instructions.
+
+```
+# zsh - current session; append the line to your .zshrc to keep it
+source <(writ completion zsh)
+
+# bash - current session; append the line to your .bashrc to keep it.
+# eval is used because macOS's default bash (3.2) cannot source from
+# <(...); results require the bash-completion package.
+eval "$(writ completion bash)"
+
+# fish
+writ completion fish > ~/.config/fish/completions/writ.fish
+```
+
 ## The loop: propose -> approve -> implement -> attest -> merge
 
 **1. `writ propose`** - the agent drafts a complete writ and proposes it, before writing any
@@ -108,3 +126,7 @@ For scripting and agents, `writ` signals its decision on the process exit code:
 - `0` - success; for `status`, the writ is auto-mergeable, and for `merge`, it merged
 - `1` - a human is needed (always from `status`; from `merge` unless `--approve` was given), or any other error occurred
 - `2` - no writ is open (from any command that reads one: `approve`, `attest`, `unattest`, `status`, `merge`, `discard`)
+
+Output stays script-friendly: ANSI color appears only when stdout is a terminal,
+and setting `NO_COLOR` (to any non-empty value) turns it off even then, so piped
+or captured output is always plain text.
