@@ -1,5 +1,7 @@
 # writ
 
+[![CI](https://github.com/Laaaaksh/writ/actions/workflows/ci.yml/badge.svg)](https://github.com/Laaaaksh/writ/actions/workflows/ci.yml)
+
 Today an agent writes code, opens a PR, and a human reads a large diff to decide whether to
 merge. That does not scale: the diff is too big to read and arrives stripped of the context
 that produced it.
