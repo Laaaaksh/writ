@@ -238,14 +238,6 @@ independently instead of failing together.
 
 If `writ` makes reviewing agent PRs tractable, [leave a star](https://github.com/Laaaaksh/writ/stargazers) - it helps other people find it.
 
-<a href="https://www.star-history.com/?repos=Laaaaksh%2Fwrit&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Laaaaksh/writ&type=date&theme=dark&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Laaaaksh/writ&type=date&theme=light&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Laaaaksh/writ&type=date&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
- </picture>
-</a>
-
 ## License
 
 MIT - see [LICENSE](LICENSE).
