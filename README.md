@@ -35,6 +35,15 @@ refuses to accept one - at intake and again before any status or merge decision.
 
 </div>
 
+## Demo
+
+![writ demo](docs/assets/demo.gif)
+
+A real writ run: `propose` -> `approve --yes` -> an in-scope edit that gets
+`attest`ed and leaves `status` clean and auto-mergeable, then an out-of-scope
+edit that `status` flags as drift while staying quiet about the in-scope
+work. [Full-quality video](docs/assets/demo.mp4).
+
 ## Install
 
 ```
