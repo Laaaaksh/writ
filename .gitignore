@@ -24,4 +24,4 @@ dist/
 
 # scripts/record-demo/record.sh scratch output
 scripts/record-demo/.bin/
-scripts/record-demo/.demo-repo/
+/.demo-repo/

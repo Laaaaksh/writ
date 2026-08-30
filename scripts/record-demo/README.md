@@ -23,10 +23,13 @@ This writes:
 ## How it fits together
 
 - `record.sh` builds `writ` into `scripts/record-demo/.bin/` (gitignored),
-  seeds `scripts/record-demo/.demo-repo/` (gitignored) with a two-package Go
+  seeds `.demo-repo/` at the repo root (gitignored) with a two-package Go
   module and a writ proposal, runs `vhs scripts/record-demo/demo.tape`, then
   shells out to `ffmpeg` for the GIF conversion. Both scratch directories are
-  removed again when it finishes.
+  removed again when it finishes. `.demo-repo` is kept short and at the repo
+  root (not nested under `scripts/record-demo/`) so writ's printed absolute
+  paths - `writ approved: <path>` - stay within the recorded terminal's
+  column width instead of wrapping.
 - `demo.tape` is the actual recording script, committed so the capture is
   reviewable and reproducible from the diff. It types the CLI commands live:
   propose from a file, approve `--yes`, an in-scope edit to

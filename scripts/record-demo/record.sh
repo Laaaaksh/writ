@@ -16,7 +16,10 @@ if ! command -v ffmpeg >/dev/null 2>&1; then
 fi
 
 BIN_DIR="scripts/record-demo/.bin"
-REPO_DIR="scripts/record-demo/.demo-repo"
+# Kept short and at the repo root (not nested under scripts/record-demo/)
+# so writ's printed absolute paths (e.g. "writ approved: <path>") stay
+# within the recorded terminal's column width instead of wrapping.
+REPO_DIR=".demo-repo"
 
 rm -rf "$BIN_DIR" "$REPO_DIR"
 mkdir -p "$BIN_DIR" "$REPO_DIR"

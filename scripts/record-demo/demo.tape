@@ -3,8 +3,8 @@
 # command below executes for real; nothing here is staged or faked.
 #
 # Run: vhs scripts/record-demo/demo.tape   (from the repo root, after
-# scripts/record-demo/.bin/writ and scripts/record-demo/.demo-repo exist -
-# see record.sh, which does both before invoking vhs).
+# scripts/record-demo/.bin/writ and .demo-repo/ exist - see record.sh,
+# which does both before invoking vhs).
 
 Output docs/assets/demo.mp4
 
@@ -12,7 +12,7 @@ Set Shell "zsh"
 Set FontFamily "JetBrains Mono"
 Set FontSize 20
 Set Width 1280
-Set Height 800
+Set Height 480
 Set Padding 20
 Set Theme "Dracula"
 Set TypingSpeed 45ms
@@ -20,7 +20,7 @@ Set TypingSpeed 45ms
 Hide
 Type "export PATH=$PWD/scripts/record-demo/.bin:$PATH"
 Enter
-Type "cd scripts/record-demo/.demo-repo"
+Type "cd .demo-repo"
 Enter
 Type "export PS1='$ '"
 Enter
@@ -68,7 +68,7 @@ Type "git commit -am 'add retry with backoff'"
 Enter
 Sleep 800ms
 
-Type "writ attest retries-on-5xx --note 'added retryWithBackoff, retries Send on failure'"
+Type "writ attest retries-on-5xx --note 'retries Send on failure'"
 Enter
 Sleep 1200ms
 
