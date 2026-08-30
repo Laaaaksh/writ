@@ -21,3 +21,7 @@ go.work.sum
 
 # goreleaser output
 dist/
+
+# scripts/record-demo/record.sh scratch output
+scripts/record-demo/.bin/
+/.demo-repo/
