@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Laaaaksh/writ/internal/writ"
+	"github.com/attentionfs/writ/internal/writ"
 )
 
 // newTestRepo creates a git repo with an initial commit on "main". Tests call

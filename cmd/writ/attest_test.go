@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Laaaaksh/writ/internal/writ"
+	"github.com/attentionfs/writ/internal/writ"
 )
 
 // setupApprovedWrit proposes and approves validWritTOML in a fresh test

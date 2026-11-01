@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Laaaaksh/writ/internal/drift"
-	"github.com/Laaaaksh/writ/internal/evidence"
-	"github.com/Laaaaksh/writ/internal/writ"
+	"github.com/attentionfs/writ/internal/drift"
+	"github.com/attentionfs/writ/internal/evidence"
+	"github.com/attentionfs/writ/internal/writ"
 )
 
 // Decision is the merge/no-merge outcome for a writ.
