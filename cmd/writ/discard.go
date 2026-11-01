@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/attentionfs/writ/internal/writ"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 func newDiscardCmd() *cobra.Command {

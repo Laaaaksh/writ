@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/attentionfs/writ/internal/writ"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 // proposeValidWrit runs `writ propose` with validWritTOML on stdin against

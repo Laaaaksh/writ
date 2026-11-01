@@ -11,9 +11,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/attentionfs/writ/internal/gate"
-	"github.com/attentionfs/writ/internal/render"
-	"github.com/attentionfs/writ/internal/writ"
+	"github.com/Laaaaksh/writ/internal/gate"
+	"github.com/Laaaaksh/writ/internal/render"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 func newMergeCmd() *cobra.Command {

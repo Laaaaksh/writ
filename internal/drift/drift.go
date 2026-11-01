@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/attentionfs/writ/internal/writ"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 // FileChange describes a single changed file.
