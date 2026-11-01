@@ -41,7 +41,7 @@ CI runs the same build, vet, and test steps on every pull request and on pushes 
   `base`, and `merge` refuses a dirty working tree. Keep these guarantees intact in any
   change to those commands.
 
-- The module path is `github.com/Laaaaksh/writ`. Only `spf13/cobra` and `BurntSushi/toml`
+- The module path is `github.com/attentionfs/writ`. Only `spf13/cobra` and `BurntSushi/toml`
   are allowed as dependencies; do not add others without prior agreement.
 - If you are a coding agent working in this repo, read [AGENTS.md](AGENTS.md) first. It
   documents the lifecycle commands and invariants your changes must respect, including

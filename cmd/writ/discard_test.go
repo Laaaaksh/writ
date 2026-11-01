@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Laaaaksh/writ/internal/writ"
+	"github.com/attentionfs/writ/internal/writ"
 )
 
 func TestRunDiscardRemovesOpenWrit(t *testing.T) {

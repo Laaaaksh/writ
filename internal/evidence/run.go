@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Laaaaksh/writ/internal/writ"
+	"github.com/attentionfs/writ/internal/writ"
 )
 
 // Report is the outcome of running a writ's verification command.

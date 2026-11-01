@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Laaaaksh/writ/internal/drift"
-	"github.com/Laaaaksh/writ/internal/evidence"
-	"github.com/Laaaaksh/writ/internal/gate"
-	"github.com/Laaaaksh/writ/internal/writ"
+	"github.com/attentionfs/writ/internal/drift"
+	"github.com/attentionfs/writ/internal/evidence"
+	"github.com/attentionfs/writ/internal/gate"
+	"github.com/attentionfs/writ/internal/writ"
 )
 
 // maxDriftLines is how many drifted files are listed individually before

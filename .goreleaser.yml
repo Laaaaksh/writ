@@ -34,7 +34,7 @@ checksum:
 
 release:
   github:
-    owner: Laaaaksh
+    owner: attentionfs
     name: writ
   draft: false
   prerelease: auto
@@ -43,10 +43,10 @@ brews:
   - name: writ
     directory: Formula
     repository:
-      owner: Laaaaksh
+      owner: attentionfs
       name: homebrew-writ
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    homepage: "https://github.com/Laaaaksh/writ"
+    homepage: "https://github.com/attentionfs/writ"
     description: "Agreed scope of work, approved before any code exists"
     license: "MIT"
     install: |

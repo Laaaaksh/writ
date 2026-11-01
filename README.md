@@ -18,12 +18,12 @@ green verification, merges with no human at all.
 A writ that declares its scope as the whole repository makes drift meaningless, so writ
 refuses to accept one - at intake and again before any status or merge decision.
 
-[![Star this repo](https://img.shields.io/github/stars/Laaaaksh/writ?style=for-the-badge&logo=github&label=star%20this%20repo&color=yellow)](https://github.com/Laaaaksh/writ/stargazers)
+[![Star this repo](https://img.shields.io/github/stars/attentionfs/writ?style=for-the-badge&logo=github&label=star%20this%20repo&color=yellow)](https://github.com/attentionfs/writ/stargazers)
 [![Built for agent workflows](https://img.shields.io/badge/built_for-agent_workflows-8957e5?style=for-the-badge&logo=githubactions&logoColor=white)](#the-loop-propose---approve---implement---attest---merge)
 
-[![CI](https://github.com/Laaaaksh/writ/actions/workflows/ci.yml/badge.svg)](https://github.com/Laaaaksh/writ/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/Laaaaksh/writ/actions/workflows/codeql.yml/badge.svg)](https://github.com/Laaaaksh/writ/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/Laaaaksh/writ?color=green&display_name=tag)](https://github.com/Laaaaksh/writ/releases)
+[![CI](https://github.com/attentionfs/writ/actions/workflows/ci.yml/badge.svg)](https://github.com/attentionfs/writ/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/attentionfs/writ/actions/workflows/codeql.yml/badge.svg)](https://github.com/attentionfs/writ/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/attentionfs/writ?color=green&display_name=tag)](https://github.com/attentionfs/writ/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/go-1.26+-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%E2%80%A2%20Linux-lightgrey)](#install)
@@ -49,7 +49,7 @@ work. [Full-quality video](docs/assets/demo.mp4).
 ```
 brew tap laaaaksh/writ
 brew trust laaaaksh/writ
-brew install Laaaaksh/writ/writ
+brew install attentionfs/writ/writ
 ```
 
 The `brew trust` step is required once: current Homebrew refuses to load formulae from
@@ -60,7 +60,7 @@ which every command uses to compute drift and merge, and a POSIX `sh`, which
 runs verification commands and `$EDITOR` launches. Alternatively, with a Go toolchain:
 
 ```
-go install github.com/Laaaaksh/writ/cmd/writ@latest
+go install github.com/attentionfs/writ/cmd/writ@latest
 ```
 
 ## Shell completions
@@ -245,13 +245,13 @@ independently instead of failing together.
 
 ## Star this repo
 
-If `writ` makes reviewing agent PRs tractable, [leave a star](https://github.com/Laaaaksh/writ/stargazers) - it helps other people find it.
+If `writ` makes reviewing agent PRs tractable, [leave a star](https://github.com/attentionfs/writ/stargazers) - it helps other people find it.
 
-<a href="https://www.star-history.com/?repos=Laaaaksh%2Fwrit&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=attentionfs%2Fwrit&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Laaaaksh/writ&type=date&theme=dark&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Laaaaksh/writ&type=date&theme=light&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Laaaaksh/writ&type=date&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=attentionfs/writ&type=date&theme=dark&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=attentionfs/writ&type=date&theme=light&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=attentionfs/writ&type=date&legend=top-left&sealed_token=F4F67k8blABpDPLBvZ1768giZMpSpbDDbRP4CdQYwSQCnM9wzsb1WfK5DZjQaMFP0HKJesQEzGsIBQwrcPLetomEkooML3q4xvADp4fQzh5WyR_Wm5TKnBCF5Nowg46r0DTG6S6T3mR2yAFHzG_f-hkrBmEovopmQp4E5WqehnXS9CiuXzXrEvcPzBYE" />
  </picture>
 </a>
 

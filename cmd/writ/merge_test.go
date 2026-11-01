@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/Laaaaksh/writ/internal/gate"
-	"github.com/Laaaaksh/writ/internal/writ"
+	"github.com/attentionfs/writ/internal/gate"
+	"github.com/attentionfs/writ/internal/writ"
 )
 
 func mustRunGit(t *testing.T, dir string, args ...string) string {

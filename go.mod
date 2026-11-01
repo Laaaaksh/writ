@@ -1,4 +1,4 @@
-module github.com/Laaaaksh/writ
+module github.com/attentionfs/writ
 
 go 1.26
 
