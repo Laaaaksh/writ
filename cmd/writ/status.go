@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/attentionfs/writ/internal/drift"
-	"github.com/attentionfs/writ/internal/evidence"
-	"github.com/attentionfs/writ/internal/gate"
-	"github.com/attentionfs/writ/internal/render"
-	"github.com/attentionfs/writ/internal/writ"
+	"github.com/Laaaaksh/writ/internal/drift"
+	"github.com/Laaaaksh/writ/internal/evidence"
+	"github.com/Laaaaksh/writ/internal/gate"
+	"github.com/Laaaaksh/writ/internal/render"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 func newStatusCmd() *cobra.Command {

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.5] - 2026-11-01
 
 ### Changed
-- Go module path is now `github.com/attentionfs/writ`, following the GitHub account rename. Update imports and `go install` commands. Homebrew users: `brew tap attentionfs/writ`.
+- Go module path is now `github.com/Laaaaksh/writ`, following the GitHub account rename. Update imports and `go install` commands. Homebrew users: `brew tap Laaaaksh/writ`.
 
 ### Added
 
@@ -111,12 +111,12 @@ Public-release hardening of the core shipped in 0.1.x.
 - Human attestation kept visually distinct from machine claims and from agent attestations.
 - Cross-platform releases (darwin/linux × amd64/arm64) with Homebrew tap publishing.
 
-[Unreleased]: https://github.com/attentionfs/writ/compare/v0.2.5...HEAD
-[0.2.5]: https://github.com/attentionfs/writ/compare/v0.2.4...v0.2.5
-[0.2.4]: https://github.com/attentionfs/writ/compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com/attentionfs/writ/compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com/attentionfs/writ/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/attentionfs/writ/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/attentionfs/writ/compare/v0.1.1...v0.2.0
-[0.1.1]: https://github.com/attentionfs/writ/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/attentionfs/writ/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Laaaaksh/writ/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/Laaaaksh/writ/compare/v0.2.4...v0.2.5
+[0.2.4]: https://github.com/Laaaaksh/writ/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/Laaaaksh/writ/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/Laaaaksh/writ/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/Laaaaksh/writ/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/Laaaaksh/writ/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/Laaaaksh/writ/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/Laaaaksh/writ/releases/tag/v0.1.0

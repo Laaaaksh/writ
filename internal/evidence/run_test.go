@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/attentionfs/writ/internal/writ"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 func TestRun_ExitZeroPasses(t *testing.T) {

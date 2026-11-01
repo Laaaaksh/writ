@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/attentionfs/writ/internal/drift"
-	"github.com/attentionfs/writ/internal/evidence"
-	"github.com/attentionfs/writ/internal/writ"
+	"github.com/Laaaaksh/writ/internal/drift"
+	"github.com/Laaaaksh/writ/internal/evidence"
+	"github.com/Laaaaksh/writ/internal/writ"
 )
 
 func boolPtr(b bool) *bool { return &b }

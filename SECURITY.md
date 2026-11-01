@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the [latest tagged release](https://github.com/attentionfs/writ/releases) is
+Only the [latest tagged release](https://github.com/Laaaaksh/writ/releases) is
 supported with security fixes. If you are running an older version, upgrade first
 and see whether the problem still reproduces.
 
@@ -12,7 +12,7 @@ Please do **not** open a public issue for anything you believe is security-relev
 
 Use GitHub's private vulnerability reporting:
 
-https://github.com/attentionfs/writ/security/advisories/new
+https://github.com/Laaaaksh/writ/security/advisories/new
 
 Please include what you can of:
 
